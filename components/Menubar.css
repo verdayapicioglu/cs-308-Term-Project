@@ -1,0 +1,186 @@
+/* Menubar.css - Verda's work */
+
+.menubar {
+  background-color: #5c0f4e;
+  color: white;
+  padding: 0 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 60px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.logo {
+  padding: 0;
+}
+
+.logo a {
+  color: white;
+  text-decoration: none;
+  font-size: 1.5rem;
+  font-weight: bold;
+  transition: opacity 0.3s;
+}
+
+.logo a:hover {
+  opacity: 0.9;
+}
+
+.paw-icon-nav {
+  display: inline-block;
+  margin-left: 4px;
+}
+
+.menu-items {
+  list-style: none;
+  display: flex;
+  margin: 0;
+  padding: 0;
+  align-items: center;
+}
+
+.menu-items li {
+  padding: 0 15px;
+  position: relative;
+}
+
+.menu-items li a {
+  color: white;
+  text-decoration: none;
+  display: block;
+  padding: 20px 0;
+  transition: background-color 0.3s;
+}
+
+.menu-items li a:hover {
+  background-color: #555;
+}
+
+.user-menu {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.user-email {
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+.logout-btn {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 6px 15px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.3s;
+}
+
+.logout-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Categories Dropdown */
+.dropdown {
+  position: relative;
+}
+
+.dropdown-trigger {
+  cursor: pointer;
+  color: white;
+  text-decoration: none;
+  display: block;
+  padding: 20px 0;
+}
+
+.dropdown-content {
+  display: block;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background-color: #f9f9f9;
+  min-width: 160px;
+  box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+  z-index: 1001;
+  border-radius: 5px;
+  overflow: hidden;
+  margin-top: 5px;
+}
+
+.dropdown-content li {
+  padding: 0;
+}
+
+.dropdown-content a {
+  color: #333;
+  padding: 12px 16px;
+  text-decoration: none;
+  display: block;
+  transition: background-color 0.3s;
+}
+
+.dropdown-content a:hover {
+  background-color: #f1f1f1;
+}
+
+.dropdown-divider {
+  height: 1px;
+  background-color: #ddd;
+  margin: 8px 0;
+}
+
+.dropdown-header {
+  padding: 8px 16px;
+  font-weight: bold;
+  color: #333;
+  font-size: 0.9rem;
+  background-color: #f5f5f5;
+  cursor: default;
+}
+
+.dropdown-header:hover {
+  background-color: #f5f5f5;
+}
+
+.dropdown-cta {
+  background-color: #667eea !important;
+  color: white !important;
+  font-weight: bold !important;
+  text-align: center;
+}
+
+.dropdown-cta:hover {
+  background-color: #5568d3 !important;
+  color: white !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .menubar {
+    flex-direction: column;
+    height: auto;
+    padding: 10px;
+  }
+
+  .menu-items {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .menu-items li {
+    width: 100%;
+    text-align: center;
+  }
+
+  .dropdown-content {
+    position: static;
+    width: 100%;
+  }
+}
+

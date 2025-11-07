@@ -1,0 +1,19 @@
+/* Global App Styles */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: #ffffff;
+  margin: 0;
+  padding: 0;
+}
+
+.App {
+  background-color: #ffffff;
+  min-height: 100vh;
+}
+

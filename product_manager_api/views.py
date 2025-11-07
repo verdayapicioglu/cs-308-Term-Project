@@ -1,0 +1,386 @@
+"""
+Product Manager API Views
+Handles product management, stock management, order management, and comment approval
+"""
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny  # TODO: Add proper authentication
+from rest_framework.response import Response
+from rest_framework import status
+import json
+
+# Mock data - Will be replaced with database in future sprints
+MOCK_PRODUCTS = [
+    {
+        "id": 1,
+        "name": "Premium Dog Food",
+        "model": "PDF-001",
+        "serial_number": "SN-001",
+        "description": "High-quality premium dog food with all natural ingredients.",
+        "quantity_in_stock": 50,
+        "price": 89.99,
+        "warranty_status": "1 year warranty",
+        "distributor": "Pet Supplies Co.",
+        "category": "Food",
+        "cost": 45.00  # 50% of sale price for loss/profit calculation
+    },
+    {
+        "id": 2,
+        "name": "Cat Litter Box",
+        "model": "CLB-002",
+        "serial_number": "SN-002",
+        "description": "Modern, covered cat litter box with odor control.",
+        "quantity_in_stock": 30,
+        "price": 45.99,
+        "warranty_status": "6 months warranty",
+        "distributor": "Cat Care Products",
+        "category": "Accessories",
+        "cost": 23.00
+    },
+    {
+        "id": 3,
+        "name": "Bird Cage - Large",
+        "model": "BC-LG-003",
+        "serial_number": "SN-003",
+        "description": "Spacious bird cage suitable for medium to large birds.",
+        "quantity_in_stock": 15,
+        "price": 129.99,
+        "warranty_status": "2 years warranty",
+        "distributor": "Avian Supplies Ltd.",
+        "category": "Housing",
+        "cost": 65.00
+    },
+]
+
+MOCK_ORDERS = [
+    {
+        "delivery_id": "DEL-001",
+        "customer_id": "CUST-001",
+        "customer_name": "John Doe",
+        "customer_email": "john@example.com",
+        "product_id": 1,
+        "product_name": "Premium Dog Food",
+        "quantity": 2,
+        "total_price": 179.98,
+        "delivery_address": "123 Main St, Istanbul, Turkey",
+        "status": "processing",
+        "order_date": "2024-01-15",
+        "delivery_date": None
+    },
+    {
+        "delivery_id": "DEL-002",
+        "customer_id": "CUST-002",
+        "customer_name": "Jane Smith",
+        "customer_email": "jane@example.com",
+        "product_id": 2,
+        "product_name": "Cat Litter Box",
+        "quantity": 1,
+        "total_price": 45.99,
+        "delivery_address": "456 Oak Ave, Ankara, Turkey",
+        "status": "in-transit",
+        "order_date": "2024-01-14",
+        "delivery_date": "2024-01-20"
+    },
+    {
+        "delivery_id": "DEL-003",
+        "customer_id": "CUST-003",
+        "customer_name": "Bob Wilson",
+        "customer_email": "bob@example.com",
+        "product_id": 3,
+        "product_name": "Bird Cage - Large",
+        "quantity": 1,
+        "total_price": 129.99,
+        "delivery_address": "789 Pine Rd, Izmir, Turkey",
+        "status": "delivered",
+        "order_date": "2024-01-10",
+        "delivery_date": "2024-01-18"
+    },
+]
+
+MOCK_COMMENTS = [
+    {
+        "id": 1,
+        "product_id": 1,
+        "product_name": "Premium Dog Food",
+        "customer_name": "John Doe",
+        "customer_email": "john@example.com",
+        "rating": 5,
+        "comment": "Great product! My dog loves it.",
+        "status": "pending",
+        "submitted_date": "2024-01-16"
+    },
+    {
+        "id": 2,
+        "product_id": 2,
+        "product_name": "Cat Litter Box",
+        "customer_name": "Jane Smith",
+        "customer_email": "jane@example.com",
+        "rating": 4,
+        "comment": "Good quality, easy to clean.",
+        "status": "approved",
+        "submitted_date": "2024-01-15"
+    },
+    {
+        "id": 3,
+        "product_id": 3,
+        "product_name": "Bird Cage - Large",
+        "customer_name": "Bob Wilson",
+        "customer_email": "bob@example.com",
+        "rating": 5,
+        "comment": "Perfect size for my parrot!",
+        "status": "pending",
+        "submitted_date": "2024-01-17"
+    },
+]
+
+MOCK_CATEGORIES = ["Food", "Accessories", "Housing", "Toys", "Health"]
+
+# Product Management
+@api_view(['GET', 'POST'])
+@permission_classes([AllowAny])
+def product_list_create(request):
+    """Get all products or create a new product"""
+    if request.method == 'GET':
+        return Response({
+            'products': MOCK_PRODUCTS,
+            'count': len(MOCK_PRODUCTS)
+        }, status=status.HTTP_200_OK)
+    
+    elif request.method == 'POST':
+        # Create new product
+        new_product = {
+            'id': len(MOCK_PRODUCTS) + 1,
+            **request.data
+        }
+        MOCK_PRODUCTS.append(new_product)
+        return Response(new_product, status=status.HTTP_201_CREATED)
+
+@api_view(['GET', 'PUT', 'DELETE'])
+@permission_classes([AllowAny])
+def product_detail(request, product_id):
+    """Get, update, or delete a specific product"""
+    product = next((p for p in MOCK_PRODUCTS if p['id'] == product_id), None)
+    
+    if not product:
+        return Response(
+            {'error': 'Product not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    if request.method == 'GET':
+        return Response(product, status=status.HTTP_200_OK)
+    
+    elif request.method == 'PUT':
+        # Update product
+        product.update(request.data)
+        return Response(product, status=status.HTTP_200_OK)
+    
+    elif request.method == 'DELETE':
+        MOCK_PRODUCTS.remove(product)
+        return Response(
+            {'message': 'Product deleted successfully'},
+            status=status.HTTP_200_OK
+        )
+
+# Category Management
+@api_view(['GET', 'POST'])
+@permission_classes([AllowAny])
+def category_list_create(request):
+    """Get all categories or create a new category"""
+    if request.method == 'GET':
+        return Response({
+            'categories': MOCK_CATEGORIES,
+            'count': len(MOCK_CATEGORIES)
+        }, status=status.HTTP_200_OK)
+    
+    elif request.method == 'POST':
+        category = request.data.get('name')
+        if category and category not in MOCK_CATEGORIES:
+            MOCK_CATEGORIES.append(category)
+            return Response(
+                {'message': 'Category created', 'category': category},
+                status=status.HTTP_201_CREATED
+            )
+        return Response(
+            {'error': 'Category already exists or invalid name'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+@api_view(['DELETE'])
+@permission_classes([AllowAny])
+def category_delete(request, category_name):
+    """Delete a category"""
+    if category_name in MOCK_CATEGORIES:
+        MOCK_CATEGORIES.remove(category_name)
+        return Response(
+            {'message': 'Category deleted successfully'},
+            status=status.HTTP_200_OK
+        )
+    return Response(
+        {'error': 'Category not found'},
+        status=status.HTTP_404_NOT_FOUND
+    )
+
+# Stock Management
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def stock_list(request):
+    """Get stock status for all products"""
+    stock_data = [
+        {
+            'product_id': p['id'],
+            'product_name': p['name'],
+            'quantity_in_stock': p['quantity_in_stock'],
+            'low_stock': p['quantity_in_stock'] < 20,
+            'out_of_stock': p['quantity_in_stock'] == 0
+        }
+        for p in MOCK_PRODUCTS
+    ]
+    return Response({'stock': stock_data}, status=status.HTTP_200_OK)
+
+@api_view(['PUT'])
+@permission_classes([AllowAny])
+def stock_update(request, product_id):
+    """Update stock quantity for a product"""
+    product = next((p for p in MOCK_PRODUCTS if p['id'] == product_id), None)
+    
+    if not product:
+        return Response(
+            {'error': 'Product not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    new_quantity = request.data.get('quantity_in_stock')
+    if new_quantity is not None:
+        product['quantity_in_stock'] = int(new_quantity)
+        return Response(product, status=status.HTTP_200_OK)
+    
+    return Response(
+        {'error': 'Invalid quantity'},
+        status=status.HTTP_400_BAD_REQUEST
+    )
+
+# Order/Delivery Management
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def order_list(request):
+    """Get all orders/deliveries"""
+    status_filter = request.query_params.get('status')
+    
+    orders = MOCK_ORDERS.copy()
+    if status_filter:
+        orders = [o for o in orders if o['status'] == status_filter]
+    
+    return Response({
+        'orders': orders,
+        'count': len(orders)
+    }, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def order_detail(request, delivery_id):
+    """Get specific order details"""
+    order = next((o for o in MOCK_ORDERS if o['delivery_id'] == delivery_id), None)
+    
+    if not order:
+        return Response(
+            {'error': 'Order not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    return Response(order, status=status.HTTP_200_OK)
+
+@api_view(['PUT'])
+@permission_classes([AllowAny])
+def order_update_status(request, delivery_id):
+    """Update order status (processing, in-transit, delivered)"""
+    order = next((o for o in MOCK_ORDERS if o['delivery_id'] == delivery_id), None)
+    
+    if not order:
+        return Response(
+            {'error': 'Order not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    new_status = request.data.get('status')
+    valid_statuses = ['processing', 'in-transit', 'delivered']
+    
+    if new_status in valid_statuses:
+        order['status'] = new_status
+        if new_status == 'delivered' and not order.get('delivery_date'):
+            from datetime import datetime
+            order['delivery_date'] = datetime.now().strftime('%Y-%m-%d')
+        return Response(order, status=status.HTTP_200_OK)
+    
+    return Response(
+        {'error': f'Invalid status. Must be one of: {valid_statuses}'},
+        status=status.HTTP_400_BAD_REQUEST
+    )
+
+# Comment Approval
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def comment_list(request):
+    """Get all comments (pending and approved)"""
+    status_filter = request.query_params.get('status')
+    
+    comments = MOCK_COMMENTS.copy()
+    if status_filter:
+        comments = [c for c in comments if c['status'] == status_filter]
+    
+    return Response({
+        'comments': comments,
+        'count': len(comments),
+        'pending_count': len([c for c in MOCK_COMMENTS if c['status'] == 'pending'])
+    }, status=status.HTTP_200_OK)
+
+@api_view(['PUT'])
+@permission_classes([AllowAny])
+def comment_approve(request, comment_id):
+    """Approve a comment"""
+    comment = next((c for c in MOCK_COMMENTS if c['id'] == comment_id), None)
+    
+    if not comment:
+        return Response(
+            {'error': 'Comment not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    action = request.data.get('action')  # 'approve' or 'reject'
+    
+    if action == 'approve':
+        comment['status'] = 'approved'
+        return Response({
+            'message': 'Comment approved',
+            'comment': comment
+        }, status=status.HTTP_200_OK)
+    
+    elif action == 'reject':
+        comment['status'] = 'rejected'
+        return Response({
+            'message': 'Comment rejected',
+            'comment': comment
+        }, status=status.HTTP_200_OK)
+    
+    return Response(
+        {'error': 'Invalid action. Use "approve" or "reject"'},
+        status=status.HTTP_400_BAD_REQUEST
+    )
+
+# Dashboard Stats
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def dashboard_stats(request):
+    """Get dashboard statistics"""
+    return Response({
+        'total_products': len(MOCK_PRODUCTS),
+        'low_stock_products': len([p for p in MOCK_PRODUCTS if p['quantity_in_stock'] < 20 and p['quantity_in_stock'] > 0]),
+        'out_of_stock_products': len([p for p in MOCK_PRODUCTS if p['quantity_in_stock'] == 0]),
+        'total_orders': len(MOCK_ORDERS),
+        'processing_orders': len([o for o in MOCK_ORDERS if o['status'] == 'processing']),
+        'in_transit_orders': len([o for o in MOCK_ORDERS if o['status'] == 'in-transit']),
+        'delivered_orders': len([o for o in MOCK_ORDERS if o['status'] == 'delivered']),
+        'pending_comments': len([c for c in MOCK_COMMENTS if c['status'] == 'pending']),
+        'total_categories': len(MOCK_CATEGORIES)
+    }, status=status.HTTP_200_OK)
+
+
