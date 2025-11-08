@@ -1,29 +1,20 @@
-// Homepage.jsx - Verda's work (SCRUM-12)
+import React from "react";
+import { Link } from "react-router-dom";
+import "./Homepage.css";
+import Products from "./Products";
 
-import React from 'react';
-import { Link } from 'react-router-dom';
-import './Homepage.css';
-
-function Homepage() {
+export default function Homepage() {
   return (
-    <div className="homepage-container">
-      <header className="welcome-header">
+    <div className="homepage">
+      <section className="hero">
         <h1>Welcome to Pet Shop 🐾</h1>
-        <p>Best products for your furry friends are here.</p>
-        <Link to="/products" className="cta-button">
-          Start Shopping Now
-        </Link>
-      </header>
+        <p>Your one-stop shop for pet care, food, and accessories.</p>
+      </section>
 
       <section className="featured-products">
         <h2>Featured Products</h2>
-        <div className="no-products">
-          Products will be displayed here. Please login or signup to continue.
-        </div>
+        <Products />
       </section>
     </div>
   );
 }
-
-export default Homepage;
-
