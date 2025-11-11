@@ -8,7 +8,7 @@
 }
 
 .welcome-header {
-  background: linear-gradient(135deg, #5c0f4e 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #5c0f4e 100%, #764ba2 0%);
   color: white;
   padding: 60px 20px;
   border-radius: 10px;
@@ -67,7 +67,7 @@
 
 .section-subtitle {
   color: #555;
-  margin-top: 10px;
+  margin-bottom: 40px;
   font-size: 1rem;
 }
 

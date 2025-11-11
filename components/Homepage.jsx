@@ -1,20 +1,31 @@
-import React from "react";
-import { Link } from "react-router-dom";
-import "./Homepage.css";
-import Products from "./Products";
+// Homepage.jsx
 
-export default function Homepage() {
+import React from "react";
+import "./Homepage.css";
+import Products from "./Products"; // Import the Products component
+
+function Homepage() {
   return (
-    <div className="homepage">
-      <section className="hero">
-        <h1>Welcome to Pet Shop 🐾</h1>
-        <p>Your one-stop shop for pet care, food, and accessories.</p>
-      </section>
+    <div className="homepage-container">
+      <header className="welcome-header">
+        <h1>Welcome to Our Pet Shop!</h1>
+        <p>Find the best products for your furry friends.</p>
+        <a href="/products" className="cta-button">
+          Start Shopping Now
+        </a>
+      </header>
 
       <section className="featured-products">
         <h2>Featured Products</h2>
-        <Products showFilters={false} />
+        <p className="section-subtitle">
+          Here are some of our most popular items, specially selected for your pets!
+        </p>
+
+        {/* Display limited number of products (e.g., 6) */}
+        <Products showFilters={false} limit={6} />
       </section>
     </div>
   );
 }
+
+export default Homepage;
