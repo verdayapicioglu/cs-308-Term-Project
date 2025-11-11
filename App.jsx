@@ -8,6 +8,8 @@ import Products from './components/Products';
 import Cart from './components/Cart';
 import About from './components/About.jsx';
 import Categories from './components/Categories.jsx';
+import ForgotPassword from './components/ForgotPassword.jsx';
+import Profile from './components/Profile.jsx';
 import { CartProvider } from './context/CartContext';
 import './App.css';
 
@@ -21,6 +23,8 @@ function App() {
             <Route path="/" element={<Homepage />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/profile" element={<Profile />} />
             <Route path="/products" element={<Products />} />
             <Route path="/categories" element={<Categories />} />
             <Route path="/cart" element={<Cart />} />

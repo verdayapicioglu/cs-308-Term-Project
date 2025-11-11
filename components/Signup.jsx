@@ -162,7 +162,8 @@ function Signup() {
           </button>
         </form>
         <p className="login-link">
-          Already have an account? <Link to="/login">Login here</Link>
+          <span className="login-label">Already have an account?</span>{' '}
+          <Link to="/login">Login here</Link>
         </p>
       </div>
     </div>

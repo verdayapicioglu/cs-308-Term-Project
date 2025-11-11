@@ -1,31 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './Login.css';
-
-// Mock users - localStorage'dan yüklenir
-const getMockUsers = () => {
-  const stored = localStorage.getItem('mock_users');
-  if (stored) {
-    return JSON.parse(stored);
-  }
-  // Varsayılan mock kullanıcılar
-  const defaultUsers = [
-    {
-      id: '1',
-      email: 'admin@petstore.com',
-      password: 'admin123',
-      name: 'Admin User',
-    },
-    {
-      id: '2',
-      email: 'user@example.com',
-      password: 'password123',
-      name: 'Test User',
-    }
-  ];
-  localStorage.setItem('mock_users', JSON.stringify(defaultUsers));
-  return defaultUsers;
-};
+import { getMockUsers } from './authUtils';
 
 function Login() {
   const [email, setEmail] = useState('');
@@ -70,6 +46,12 @@ function Login() {
     }, 800); // 800ms loading simülasyonu
   };
 
+  const handleForgotPassword = () => {
+    navigate('/forgot-password', {
+      state: email ? { email } : undefined,
+    });
+  };
+
   return (
     <div className="login-container">
       <div className="login-card">
@@ -105,6 +87,14 @@ function Login() {
             {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
+        <button
+          type="button"
+          className="forgot-password-button"
+          onClick={handleForgotPassword}
+          disabled={loading}
+        >
+          Forgot password?
+        </button>
         <p className="signup-link">
           Don't have an account? <Link to="/signup">Sign up here</Link>
         </p>

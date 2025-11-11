@@ -132,6 +132,28 @@
   border: 1px solid #f5c6cb;
 }
 
+.forgot-password-button {
+  background: transparent;
+  border: none;
+  color: #007bff;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: block;
+  margin: 15px auto 0;
+  transition: color 0.3s;
+  text-decoration: underline;
+}
+
+.forgot-password-button:hover:not(:disabled) {
+  color: #0056b3;
+}
+
+.forgot-password-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .signup-link {
   text-align: center;
   margin-top: 20px;

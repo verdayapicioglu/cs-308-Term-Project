@@ -14,15 +14,20 @@ export default function Menubar({ user, onLogout }) {
         <Link to="/categories">Categories</Link>
         <Link to="/about">About Us</Link>
         <Link to="/cart">Cart</Link>
+        <Link to="/profile">Profile</Link>
       </div>
       <div className="user-section">
         {user ? (
           <>
-            <span>{user.email}</span>
-            <button onClick={onLogout}>Logout</button>
+            <span className="user-email">{user.email}</span>
+            <button className="logout-btn" onClick={onLogout}>
+              Logout
+            </button>
           </>
         ) : (
-          <Link to="/login">Login</Link>
+          <Link className="login-link" to="/login">
+            Login
+          </Link>
         )}
       </div>
     </nav>
