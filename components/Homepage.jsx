@@ -22,7 +22,7 @@ function Homepage() {
         </p>
 
         {/* Display limited number of products (e.g., 6) */}
-        <Products showFilters={false} limit={6} />
+        <Products showFilters={false} limit={4} />
       </section>
     </div>
   );
