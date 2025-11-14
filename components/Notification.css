@@ -1,0 +1,45 @@
+.notification-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background-color: #5c0f4e;
+  color: white;
+  padding: 16px 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 400px;
+  z-index: 1000;
+  
+  transform: translateY(100px);
+  opacity: 0;
+  transition: transform 0.4s ease-out, opacity 0.4s ease-out;
+}
+
+.notification-container.active {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.notification-message {
+  font-size: 1rem;
+  font-weight: 500;
+  margin-right: 20px;
+}
+
+.notification-close-btn {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.notification-close-btn:hover {
+  opacity: 1;
+}

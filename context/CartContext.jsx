@@ -25,10 +25,25 @@ const readFromStorage = () => {
 
 export function CartProvider({ children }) {
   const [cartItems, setCartItems] = useState(() => readFromStorage());
+  
+  const [notification, setNotification] = useState("");
+  const [notificationTimer, setNotificationTimer] = useState(null);
 
   useEffect(() => {
     saveToStorage(cartItems);
   }, [cartItems]);
+
+  const showNotification = (message) => {
+    if (notificationTimer) {
+      clearTimeout(notificationTimer);
+    }
+    setNotification(message);
+    const timer = setTimeout(() => {
+      setNotification("");
+    }, 3000);
+    setNotificationTimer(timer);
+  };
+
 
   const addToCart = (product) => {
     setCartItems((prev) => {
@@ -52,24 +67,39 @@ export function CartProvider({ children }) {
         },
       ];
     });
+    showNotification(`${product.name} is added to your cart.`);
   };
 
   const removeFromCart = (productId) => {
+    const itemToRemove = cartItems.find((item) => item.id === productId);
+
     setCartItems((prev) => prev.filter((item) => item.id !== productId));
+    
+    if (itemToRemove) {
+      showNotification(`${itemToRemove.name} removed from cart.`);
+    }
   };
 
   const updateQuantity = (productId, newQuantity) => {
-    setCartItems((prev) => {
-      if (newQuantity <= 0) {
-        return prev.filter((item) => item.id !== productId);
-      }
-      return prev.map((item) =>
-        item.id === productId ? { ...item, quantity: newQuantity } : item
+    if (newQuantity <= 0) {
+      removeFromCart(productId); 
+    } else {
+      setCartItems((prev) =>
+        prev.map((item) =>
+          item.id === productId ? { ...item, quantity: newQuantity } : item
+        )
       );
-    });
+
+      showNotification("Cart quantity updated.");
+    }
   };
 
-  const clearCart = () => setCartItems([]);
+  const clearCart = () => {
+    setCartItems([]);
+    showNotification("Cart has been cleared.");
+  };
+
+  const clearNotification = () => setNotification("");
 
   const value = useMemo(
     () => ({
@@ -78,9 +108,12 @@ export function CartProvider({ children }) {
       removeFromCart,
       updateQuantity,
       clearCart,
+      notification, 
+      clearNotification, 
     }),
-    [cartItems],
+    [cartItems, notification], 
   );
+  
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

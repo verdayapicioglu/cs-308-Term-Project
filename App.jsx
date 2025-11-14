@@ -11,11 +11,13 @@ import Categories from './components/Categories.jsx';
 import ForgotPassword from './components/ForgotPassword.jsx';
 import Profile from './components/Profile.jsx';
 import { CartProvider } from './context/CartContext';
+import Notification from './components/Notification';
 import './App.css';
 
 function App() {
   return (
     <CartProvider>
+      <Notification />
       <Router>
         <div className="App">
           <Menubar />
