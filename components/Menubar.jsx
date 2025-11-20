@@ -15,6 +15,7 @@ export default function Menubar({ user, onLogout }) {
         <Link to="/about">About Us</Link>
         <Link to="/cart">Cart</Link>
         <Link to="/profile">Profile</Link>
+        <Link to="/product-manager/comments">Comment Approval</Link>
       </div>
       <div className="user-section">
         {user ? (

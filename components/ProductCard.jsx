@@ -1,21 +1,32 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import './ProductCard.css';
 
 function ProductCard({ product }) {
+  const navigate = useNavigate();
   // Handle missing quantity_in_stock - default to available if not specified
   const quantity = product.quantity_in_stock ?? 1;
   const isOutOfStock = quantity === 0;
   const { addToCart } = useCart();
 
-  const handleAddToCart = () => {
+  const handleAddToCart = (e) => {
+    e.stopPropagation(); // Prevent navigation when clicking add to cart
     if (!isOutOfStock) {
       addToCart(product);
     }
   };
 
+  const handleCardClick = () => {
+    navigate(`/product/${product.id}`);
+  };
+
   return (
-    <div className={`product-card ${isOutOfStock ? 'out-of-stock' : ''}`}>
+    <div 
+      className={`product-card ${isOutOfStock ? 'out-of-stock' : ''}`}
+      onClick={handleCardClick}
+      style={{ cursor: 'pointer' }}
+    >
       <div className="product-image">
         <img 
           src={product.image_url || 'https://via.placeholder.com/300x300?text=Product'} 
@@ -43,6 +54,7 @@ function ProductCard({ product }) {
           disabled={isOutOfStock}
           onClick={handleAddToCart}
           title={isOutOfStock ? 'This product is out of stock' : 'Add to cart'}
+          style={{ cursor: isOutOfStock ? 'not-allowed' : 'pointer' }}
         >
           {isOutOfStock ? 'Out of Stock' : 'Add to Cart'}
         </button>
