@@ -1,7 +1,16 @@
 import { useState } from "react";
 import "./PaymentMockFlow.css";
+// 🔹 EKLEME: Invoice PDF için util
+import { generateInvoicePdf } from "./invoiceUtils";
 
-export default function PaymentMockFlow({ amount, currency = "TRY", onSuccess, onCancel }) {
+export default function PaymentMockFlow({
+  amount,
+  currency = "TRY",
+  onSuccess,
+  onCancel,
+  // 🔹 EKLEME: Cart.jsx'ten gelecek sipariş objesi
+  order,
+}) {
   const [step, setStep] = useState("card"); // "card" | "3ds" | "success"
   const [cardName, setCardName] = useState("");
   const [cardNumber, setCardNumber] = useState("");
@@ -52,6 +61,19 @@ export default function PaymentMockFlow({ amount, currency = "TRY", onSuccess, o
 
   function handleClose() {
     if (onCancel) onCancel();
+  }
+
+  // 🔹 EKLEME: PDF indirme handler'ı
+  function handleDownloadInvoice() {
+    if (!order) {
+      console.warn("No order data provided for invoice.");
+      return;
+    }
+    try {
+      generateInvoicePdf(order);
+    } catch (err) {
+      console.error("Failed to generate invoice PDF", err);
+    }
   }
 
   return (
@@ -165,6 +187,64 @@ export default function PaymentMockFlow({ amount, currency = "TRY", onSuccess, o
             <p className="pm-success-amount">
               Amount paid: <strong>{amount} {currency}</strong>
             </p>
+
+            {/* 🔹 EKLEME: Invoice önce ekranda görünsün */}
+            {order && (
+              <div className="pm-invoice-preview">
+                <h4>Invoice Summary</h4>
+                <p>
+                  <strong>Customer:</strong> {order.customerName || "-"}
+                </p>
+                <p>
+                  <strong>Date:</strong> {order.date || "-"}
+                </p>
+                <p>
+                  <strong>Payment method:</strong> {order.paymentMethod || "-"}
+                </p>
+
+                <div className="pm-invoice-items">
+                  {(order.items || []).map((item, idx) => (
+                    <div key={idx} className="pm-invoice-item">
+                      <span>{item.name}</span>
+                      <span>x{item.quantity ?? 1}</span>
+                      <span>
+                        {(item.price ?? 0).toFixed(2)} TRY
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pm-invoice-totals">
+                  <div>
+                    Subtotal:{" "}
+                    <strong>
+                      {(order.subtotal ?? 0).toFixed(2)} TRY
+                    </strong>
+                  </div>
+                  <div>
+                    Tax:{" "}
+                    <strong>
+                      {(order.tax ?? 0).toFixed(2)} TRY
+                    </strong>
+                  </div>
+                  <div>
+                    Total:{" "}
+                    <strong>
+                      {(order.total ?? 0).toFixed(2)} TRY
+                    </strong>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="pm-primary pm-invoice-download"
+                  onClick={handleDownloadInvoice}
+                >
+                  Download Invoice (PDF)
+                </button>
+              </div>
+            )}
+
             <button className="pm-primary" onClick={handleClose}>
               Continue
             </button>
