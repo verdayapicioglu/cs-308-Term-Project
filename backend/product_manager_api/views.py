@@ -3,10 +3,9 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 from django.utils import timezone
-from .models import Product, Order
+from .models import Product, Order, Review
 
 MOCK_CATEGORIES = ["Food", "Accessories", "Housing", "Toys", "Health"]
-MOCK_COMMENTS = []
 @api_view(['GET', 'POST'])
 @permission_classes([AllowAny])
 def product_list_create(request):
@@ -302,23 +301,43 @@ def comment_list(request):
     """Get all comments (pending and approved)"""
     status_filter = request.query_params.get('status')
     
-    comments = MOCK_COMMENTS.copy()
+    reviews_query = Review.objects.all()
     if status_filter:
-        comments = [c for c in comments if c['status'] == status_filter]
+        reviews_query = reviews_query.filter(status=status_filter)
+    
+    comments = [{
+        'id': r.id,
+        'product_id': r.product_id,
+        'product_name': r.product_name,
+        'productName': r.product_name,  # Alternative field name for frontend compatibility
+        'user_id': r.user_id,
+        'user_name': r.user_name,
+        'userName': r.user_name,  # Alternative field name for frontend compatibility
+        'user_email': r.user_email,
+        'userEmail': r.user_email,  # Alternative field name for frontend compatibility
+        'rating': r.rating,
+        'comment': r.comment,
+        'status': r.status,
+        'date': r.created_at.isoformat(),
+        'created_at': r.created_at.isoformat(),
+    } for r in reviews_query]
+    
+    # Get pending count
+    pending_count = Review.objects.filter(status='pending').count()
     
     return Response({
         'comments': comments,
         'count': len(comments),
-        'pending_count': len([c for c in MOCK_COMMENTS if c['status'] == 'pending'])
+        'pending_count': pending_count
     }, status=status.HTTP_200_OK)
 
 @api_view(['PUT'])
 @permission_classes([AllowAny])
 def comment_approve(request, comment_id):
-    """Approve a comment"""
-    comment = next((c for c in MOCK_COMMENTS if c['id'] == comment_id), None)
-    
-    if not comment:
+    """Approve or reject a comment"""
+    try:
+        review = Review.objects.get(id=comment_id)
+    except Review.DoesNotExist:
         return Response(
             {'error': 'Comment not found'},
             status=status.HTTP_404_NOT_FOUND
@@ -327,17 +346,39 @@ def comment_approve(request, comment_id):
     action = request.data.get('action')  # 'approve' or 'reject'
     
     if action == 'approve':
-        comment['status'] = 'approved'
+        review.status = 'approved'
+        review.save()
         return Response({
             'message': 'Comment approved',
-            'comment': comment
+            'comment': {
+                'id': review.id,
+                'product_id': review.product_id,
+                'product_name': review.product_name,
+                'user_name': review.user_name,
+                'user_email': review.user_email,
+                'rating': review.rating,
+                'comment': review.comment,
+                'status': review.status,
+                'created_at': review.created_at.isoformat(),
+            }
         }, status=status.HTTP_200_OK)
     
     elif action == 'reject':
-        comment['status'] = 'rejected'
+        review.status = 'rejected'
+        review.save()
         return Response({
             'message': 'Comment rejected',
-            'comment': comment
+            'comment': {
+                'id': review.id,
+                'product_id': review.product_id,
+                'product_name': review.product_name,
+                'user_name': review.user_name,
+                'user_email': review.user_email,
+                'rating': review.rating,
+                'comment': review.comment,
+                'status': review.status,
+                'created_at': review.created_at.isoformat(),
+            }
         }, status=status.HTTP_200_OK)
     
     return Response(
@@ -361,7 +402,7 @@ def dashboard_stats(request):
         'processing_orders': orders.filter(status='processing').count(),
         'in_transit_orders': orders.filter(status='in-transit').count(),
         'delivered_orders': orders.filter(status='delivered').count(),
-        'pending_comments': 0,  # Will be updated when comments table is added
+        'pending_comments': Review.objects.filter(status='pending').count(),
         'total_categories': products.values('category').distinct().count()
     }, status=status.HTTP_200_OK)
 

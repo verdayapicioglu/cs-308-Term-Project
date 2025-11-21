@@ -29,11 +29,20 @@ async function apiRequest(endpoint, options = {}) {
 
   try {
     const response = await fetch(url, config);
-    const data = await response.json();
+    
+    // Try to parse JSON, but handle cases where response might not be JSON
+    let data;
+    try {
+      const text = await response.text();
+      data = text ? JSON.parse(text) : {};
+    } catch (parseError) {
+      // If JSON parsing fails, create a basic error response
+      data = { error: 'Invalid response from server' };
+    }
 
     if (!response.ok) {
       // Handle error responses - preserve full error object
-      const error = new Error(data.error || data.message || 'An error occurred');
+      const error = new Error(data.error || data.message || data.detail || 'An error occurred');
       error.response = { data, status: response.status };
       throw error;
     }
@@ -43,6 +52,12 @@ async function apiRequest(endpoint, options = {}) {
     // If it's already our custom error, re-throw it
     if (error.response) {
       throw error;
+    }
+    // Handle network errors or other fetch errors
+    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      const networkError = new Error('Unable to connect to server. Please make sure the backend is running.');
+      networkError.response = { data: { error: 'Network error' }, status: 0 };
+      throw networkError;
     }
     // Otherwise, wrap it
     console.error('API Request Error:', error);
@@ -149,6 +164,10 @@ export function storeUserData(user) {
     localStorage.setItem('user_name', `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username);
     localStorage.setItem('user_username', user.username);
     localStorage.setItem('is_authenticated', 'true');
+    // Store admin status
+    localStorage.setItem('is_admin', (user.is_admin || user.is_staff || user.is_superuser) ? 'true' : 'false');
+    localStorage.setItem('is_staff', user.is_staff ? 'true' : 'false');
+    localStorage.setItem('is_superuser', user.is_superuser ? 'true' : 'false');
   }
 }
 
@@ -161,6 +180,9 @@ export function clearUserData() {
   localStorage.removeItem('user_name');
   localStorage.removeItem('user_username');
   localStorage.removeItem('is_authenticated');
+  localStorage.removeItem('is_admin');
+  localStorage.removeItem('is_staff');
+  localStorage.removeItem('is_superuser');
 }
 
 /**
@@ -224,6 +246,208 @@ export const cartAPI = {
     return apiRequest('/cart/merge/', {
       method: 'POST',
       body: JSON.stringify({ items: localItems }),
+    });
+  },
+};
+
+/**
+ * Product Manager API
+ * Base URL: http://localhost:8000/ (root level, not under /api/)
+ */
+const PRODUCT_MANAGER_BASE_URL = 'http://localhost:8000';
+
+async function productManagerRequest(endpoint, options = {}) {
+  const url = `${PRODUCT_MANAGER_BASE_URL}${endpoint}`;
+  
+  const defaultOptions = {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+  };
+
+  const config = {
+    ...defaultOptions,
+    ...options,
+    headers: {
+      ...defaultOptions.headers,
+      ...options.headers,
+    },
+  };
+
+  try {
+    const response = await fetch(url, config);
+    const data = await response.json();
+
+    if (!response.ok) {
+      const error = new Error(data.error || data.message || 'An error occurred');
+      error.response = { data, status: response.status };
+      throw error;
+    }
+
+    return { data, status: response.status };
+  } catch (error) {
+    if (error.response) {
+      throw error;
+    }
+    console.error('Product Manager API Request Error:', error);
+    throw error;
+  }
+}
+
+export const productManagerAPI = {
+  /**
+   * Get dashboard statistics
+   */
+  async getDashboardStats() {
+    return productManagerRequest('/dashboard/stats/');
+  },
+
+  /**
+   * Get all products for management
+   */
+  async getManagerProducts() {
+    return productManagerRequest('/products/');
+  },
+
+  /**
+   * Get a single product by ID
+   * @param {number} productId - Product ID
+   */
+  async getProduct(productId) {
+    return productManagerRequest(`/products/${productId}/`);
+  },
+
+  /**
+   * Create a new product
+   * @param {Object} productData - Product data
+   */
+  async createProduct(productData) {
+    return productManagerRequest('/products/', {
+      method: 'POST',
+      body: JSON.stringify(productData),
+    });
+  },
+
+  /**
+   * Update a product
+   * @param {number} productId - Product ID
+   * @param {Object} productData - Updated product data
+   */
+  async updateProduct(productId, productData) {
+    return productManagerRequest(`/products/${productId}/`, {
+      method: 'PUT',
+      body: JSON.stringify(productData),
+    });
+  },
+
+  /**
+   * Delete a product
+   * @param {number} productId - Product ID
+   */
+  async deleteProduct(productId) {
+    return productManagerRequest(`/products/${productId}/`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
+   * Get all categories
+   */
+  async getCategories() {
+    return productManagerRequest('/categories/');
+  },
+
+  /**
+   * Create a new category
+   * @param {string} categoryName - Category name
+   */
+  async createCategory(categoryName) {
+    return productManagerRequest('/categories/', {
+      method: 'POST',
+      body: JSON.stringify({ name: categoryName }),
+    });
+  },
+
+  /**
+   * Delete a category
+   * @param {string} categoryName - Category name
+   */
+  async deleteCategory(categoryName) {
+    return productManagerRequest(`/categories/${categoryName}/`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
+   * Get stock information
+   */
+  async getStock() {
+    return productManagerRequest('/stock/');
+  },
+
+  /**
+   * Update stock quantity
+   * @param {number} productId - Product ID
+   * @param {number} quantity - New quantity
+   */
+  async updateStock(productId, quantity) {
+    return productManagerRequest(`/stock/${productId}/`, {
+      method: 'PUT',
+      body: JSON.stringify({ quantity_in_stock: quantity }),
+    });
+  },
+
+  /**
+   * Get all orders
+   * @param {string|null} statusFilter - Optional status filter
+   */
+  async getOrders(statusFilter = null) {
+    const endpoint = statusFilter ? `/orders/?status=${statusFilter}` : '/orders/';
+    return productManagerRequest(endpoint);
+  },
+
+  /**
+   * Update order status
+   * @param {string} deliveryId - Delivery ID
+   * @param {string} newStatus - New status
+   */
+  async updateOrderStatus(deliveryId, newStatus) {
+    return productManagerRequest(`/orders/${deliveryId}/status/`, {
+      method: 'PUT',
+      body: JSON.stringify({ status: newStatus }),
+    });
+  },
+
+  /**
+   * Get all comments/reviews
+   * @param {string|null} statusFilter - Optional status filter (pending, approved, rejected)
+   */
+  async getComments(statusFilter = null) {
+    const endpoint = statusFilter ? `/comments/?status=${statusFilter}` : '/comments/';
+    return productManagerRequest(endpoint);
+  },
+
+  /**
+   * Approve or reject a comment
+   * @param {number} commentId - Comment ID
+   * @param {string} action - 'approve' or 'reject'
+   */
+  async approveComment(commentId, action) {
+    return productManagerRequest(`/comments/${commentId}/approve/`, {
+      method: 'PUT',
+      body: JSON.stringify({ action }),
+    });
+  },
+
+  /**
+   * Create a new review/comment
+   * @param {Object} reviewData - { product_id, product_name, user_id, user_name, user_email, rating, comment }
+   */
+  async createReview(reviewData) {
+    return productManagerRequest('/comments/create/', {
+      method: 'POST',
+      body: JSON.stringify(reviewData),
     });
   },
 };

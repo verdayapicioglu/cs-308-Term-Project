@@ -1,12 +1,22 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Profile.css';
-import { authAPI, clearUserData } from './api';
+import { getMockUsers, saveMockUsers } from './authUtils';
+import { authAPI } from './api';
 
-const PROFILE_STORAGE_KEY = 'user_profile_extended';
+const PROFILE_STORAGE_KEY = 'mock_profile_overview';
 
-// Dummy data for admin users (demo purposes)
-const ADMIN_DUMMY_DATA = {
+const DEFAULT_PROFILE = {
+  id: '1',
+  name: 'Admin User',
+  email: 'admin@petstore.com',
+  phone: '+90 555 123 4567',
+  memberSince: '2021-06-12',
+  loyaltyTier: 'Gold',
+  points: 12450,
+  petsSupported: 3,
+  lastLogin: '2025-11-10T18:15:00Z',
+  bio: 'Premium member who loves caring for rescued pets and exploring sustainable products.',
   addresses: [
     {
       id: 'addr-istanbul',
@@ -31,6 +41,28 @@ const ADMIN_DUMMY_DATA = {
       isDefault: false,
     },
   ],
+  preferences: {
+    orderReminders: {
+      label: 'Order reminders',
+      description: 'Notify me when it’s time to restock essentials.',
+      enabled: true,
+    },
+    wellnessTips: {
+      label: 'Weekly wellness tips',
+      description: 'Curated care tips tailored to my pets.',
+      enabled: true,
+    },
+    earlyAccess: {
+      label: 'Early access drops',
+      description: 'Get notified about limited collection launches.',
+      enabled: false,
+    },
+    smsUpdates: {
+      label: 'SMS delivery updates',
+      description: 'Shipping progress and delivery confirmations via SMS.',
+      enabled: true,
+    },
+  },
   recentOrders: [
     {
       id: 'ORD-89214',
@@ -107,7 +139,7 @@ const ADMIN_DUMMY_DATA = {
       date: '2025-11-24',
       time: '18:30',
       location: 'Hale Veterinary Clinic, Moda',
-      notes: 'Bring Loki\'s vaccination booklet.',
+      notes: 'Bring Loki’s vaccination booklet.',
     },
     {
       id: 'sched-grooming',
@@ -121,143 +153,104 @@ const ADMIN_DUMMY_DATA = {
   favorites: ['Holistic Salmon Kibble', 'Bamboo Litter Refills', 'Interactive Feather Wand'],
 };
 
-// Default extended profile structure - always includes dummy data for all users
-const getDefaultExtendedProfile = (userData) => ({
-  phone: userData?.profile?.phone || '',
-  bio: userData?.profile?.bio || 'Premium member who loves caring for rescued pets and exploring sustainable products.',
-  addresses: ADMIN_DUMMY_DATA.addresses,
-  preferences: {
-    orderReminders: {
-      label: 'Order reminders',
-      description: 'Notify me when it\'s time to restock essentials.',
-      enabled: true,
-    },
-    wellnessTips: {
-      label: 'Weekly wellness tips',
-      description: 'Curated care tips tailored to my pets.',
-      enabled: true,
-    },
-    earlyAccess: {
-      label: 'Early access drops',
-      description: 'Get notified about limited collection launches.',
-      enabled: false,
-    },
-    smsUpdates: {
-      label: 'SMS delivery updates',
-      description: 'Shipping progress and delivery confirmations via SMS.',
-      enabled: true,
-    },
-  },
-  recentOrders: ADMIN_DUMMY_DATA.recentOrders,
-  careNotes: ADMIN_DUMMY_DATA.careNotes,
-  scheduled: ADMIN_DUMMY_DATA.scheduled,
-  favorites: ADMIN_DUMMY_DATA.favorites,
-});
+function sanitizeProfile(stored) {
+  if (!stored) return DEFAULT_PROFILE;
+  try {
+    const parsed = JSON.parse(stored);
+    return { ...DEFAULT_PROFILE, ...parsed };
+  } catch (error) {
+    console.warn('Corrupted profile data. Resetting to defaults.', error);
+    return DEFAULT_PROFILE;
+  }
+}
 
 function Profile() {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
-  const [extendedProfile, setExtendedProfile] = useState(null);
+  const mockUsers = useMemo(() => getMockUsers(), []);
+  const activeMockUser = mockUsers[0] ?? DEFAULT_PROFILE;
+
+  const [profile, setProfile] = useState(() => {
+    const stored = localStorage.getItem(PROFILE_STORAGE_KEY);
+    const merged = sanitizeProfile(stored);
+    return {
+      ...merged,
+      name: activeMockUser.name ?? merged.name,
+      email: activeMockUser.email ?? merged.email,
+    };
+  });
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
+  // Fetch profile from backend on mount
   useEffect(() => {
-    // Check if user is authenticated
-    const isAuthenticated = localStorage.getItem('is_authenticated');
-    if (!isAuthenticated) {
-      navigate('/login');
-      return;
-    }
+    loadProfileFromBackend();
+  }, []);
 
-    // Fetch user data from API
-    fetchUserData();
-  }, [navigate]);
-
-  const fetchUserData = async () => {
+  const loadProfileFromBackend = async () => {
     try {
       setLoading(true);
       setError('');
       const response = await authAPI.getCurrentUser();
-      if (response.data) {
-        setUser(response.data);
+      const userData = response.data;
+      
+      if (userData) {
+        const profileData = userData.profile || {};
+        const fullName = `${userData.first_name || ''} ${userData.last_name || ''}`.trim() || userData.username;
         
-        // Load or initialize extended profile from localStorage
-        const storedExtended = localStorage.getItem(`${PROFILE_STORAGE_KEY}_${response.data.id}`);
-        let extended = getDefaultExtendedProfile(response.data);
-        
-        if (storedExtended) {
-          try {
-            const parsed = JSON.parse(storedExtended);
-            // Merge with defaults, preserving user's saved data
-            // Always use dummy data as fallback if arrays are empty
-            extended = {
-              ...extended,
-              ...parsed,
-              // Ensure phone and bio are synced from backend if available
-              phone: response.data.profile?.phone || parsed.phone || '',
-              bio: response.data.profile?.bio || parsed.bio || 'Premium member who loves caring for rescued pets and exploring sustainable products.',
-              // Always use dummy data if stored arrays are empty or missing
-              addresses: (parsed.addresses && parsed.addresses.length > 0) ? parsed.addresses : ADMIN_DUMMY_DATA.addresses,
-              recentOrders: (parsed.recentOrders && parsed.recentOrders.length > 0) ? parsed.recentOrders : ADMIN_DUMMY_DATA.recentOrders,
-              careNotes: (parsed.careNotes && parsed.careNotes.length > 0) ? parsed.careNotes : ADMIN_DUMMY_DATA.careNotes,
-              scheduled: (parsed.scheduled && parsed.scheduled.length > 0) ? parsed.scheduled : ADMIN_DUMMY_DATA.scheduled,
-              favorites: (parsed.favorites && parsed.favorites.length > 0) ? parsed.favorites : ADMIN_DUMMY_DATA.favorites,
-            };
-          } catch (err) {
-            console.warn('Failed to parse extended profile, using defaults', err);
-            // On error, re-initialize with defaults (includes dummy data)
-            extended = getDefaultExtendedProfile(response.data);
-          }
-        } else {
-          // First time - sync phone and bio from backend
-          // Dummy data is already set in getDefaultExtendedProfile
-          extended.phone = response.data.profile?.phone || '';
-          extended.bio = response.data.profile?.bio || 'Premium member who loves caring for rescued pets and exploring sustainable products.';
-        }
-        setExtendedProfile(extended);
-        
-        // Update localStorage with latest user data
-        if (response.data.id) {
-          localStorage.setItem('user_id', response.data.id);
-          localStorage.setItem('user_email', response.data.email || '');
-          localStorage.setItem('user_name', `${response.data.first_name || ''} ${response.data.last_name || ''}`.trim() || response.data.username);
-          localStorage.setItem('user_username', response.data.username);
-          localStorage.setItem('is_authenticated', 'true');
-        }
+        // Merge backend data with local defaults
+        setProfile(prev => ({
+          ...prev,
+          id: String(userData.id),
+          name: fullName,
+          email: userData.email || prev.email,
+          phone: profileData.phone || prev.phone,
+          bio: profileData.bio || prev.bio,
+          loyaltyTier: profileData.loyalty_tier || prev.loyaltyTier || 'Standard',
+          points: profileData.loyalty_points || prev.points || 0,
+          petsSupported: profileData.pets_supported || prev.petsSupported || 0,
+          memberSince: userData.date_joined ? new Date(userData.date_joined).toISOString().split('T')[0] : prev.memberSince,
+        }));
       }
     } catch (err) {
-      console.error('Error fetching user data:', err);
-      setError('Failed to load profile. Please try again.');
-      // If unauthorized, redirect to login
-      if (err.response?.status === 401 || err.response?.status === 403) {
-        clearUserData();
-        navigate('/login');
-      }
+      console.error('Failed to load profile from backend:', err);
+      // Continue with local data if backend fails
+      setError('Could not load profile from server. Using local data.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Save extended profile to localStorage whenever it changes
-  useEffect(() => {
-    if (extendedProfile && user?.id) {
-      localStorage.setItem(`${PROFILE_STORAGE_KEY}_${user.id}`, JSON.stringify(extendedProfile));
-    }
-  }, [extendedProfile, user?.id]);
-
-  const handleSignOut = async () => {
+  const saveProfileToBackend = async (updatedFields) => {
     try {
-      await authAPI.logout();
+      setSaving(true);
+      await authAPI.updateProfile(updatedFields);
+      await loadProfileFromBackend(); // Reload to get updated data
     } catch (err) {
-      console.error('Logout error:', err);
+      console.error('Failed to save profile to backend:', err);
+      setError('Failed to save profile changes. Please try again.');
+      throw err;
     } finally {
-      clearUserData();
-      navigate('/login');
+      setSaving(false);
     }
   };
 
+  useEffect(() => {
+    localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
+  }, [profile]);
+
+  useEffect(() => {
+    const updatedMockUsers = mockUsers.map((user) =>
+      user.id === profile.id
+        ? { ...user, name: profile.name, email: profile.email }
+        : user
+    );
+    saveMockUsers(updatedMockUsers);
+  }, [profile.name, profile.email, profile.id, mockUsers]);
+
   const handleTogglePreference = (key) => {
-    setExtendedProfile((prev) => ({
+    setProfile((prev) => ({
       ...prev,
       preferences: {
         ...prev.preferences,
@@ -267,20 +260,51 @@ function Profile() {
         },
       },
     }));
+    // Note: Preferences are stored locally only for now
   };
 
   const handleSetDefaultAddress = (id) => {
-    setExtendedProfile((prev) => ({
+    setProfile((prev) => ({
       ...prev,
       addresses: prev.addresses.map((address) => ({
         ...address,
         isDefault: address.id === id,
       })),
     }));
+    // Note: Addresses are stored locally only for now
+  };
+
+  const handleUpdateProfile = async (field, value) => {
+    const updatedProfile = { ...profile, [field]: value };
+    setProfile(updatedProfile);
+    
+    // Map frontend fields to backend fields
+    const backendFields = {
+      phone: 'phone',
+      bio: 'bio',
+      loyaltyTier: 'loyalty_tier',
+      points: 'loyalty_points',
+      petsSupported: 'pets_supported',
+    };
+    
+    if (backendFields[field]) {
+      try {
+        await saveProfileToBackend({ [backendFields[field]]: value });
+      } catch (err) {
+        // Error already handled in saveProfileToBackend
+      }
+    }
+  };
+
+  const handleSignOut = () => {
+    localStorage.removeItem('user_email');
+    localStorage.removeItem('user_name');
+    localStorage.removeItem('user_id');
+    localStorage.removeItem('is_authenticated');
+    navigate('/login');
   };
 
   const formatDate = (value) => {
-    if (!value) return 'N/A';
     try {
       return new Intl.DateTimeFormat('en-GB', {
         year: 'numeric',
@@ -295,183 +319,41 @@ function Profile() {
   if (loading) {
     return (
       <div className="profile-page">
-        <div style={{ padding: '40px', textAlign: 'center' }}>
+        <div style={{ padding: '2rem', textAlign: 'center' }}>
           <p>Loading profile...</p>
         </div>
       </div>
     );
   }
 
-  if (error) {
-    return (
-      <div className="profile-page">
-        <div style={{ padding: '40px', textAlign: 'center' }}>
-          <p className="error-message">{error}</p>
-          <button onClick={fetchUserData}>Retry</button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user || !extendedProfile) {
-    return (
-      <div className="profile-page">
-        <div style={{ padding: '40px', textAlign: 'center' }}>
-          <p>No user data available. Please log in again.</p>
-          <button onClick={() => navigate('/login')}>Go to Login</button>
-        </div>
-      </div>
-    );
-  }
-
-  const isAdmin = user.is_admin || user.is_staff || user.is_superuser;
-  const backendProfile = user.profile || {};
-  const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username;
-  
-  // Merge backend data with extended profile
-  // Always use dummy data (already included in extendedProfile)
-  const profile = {
-    name: fullName,
-    email: user.email,
-    phone: extendedProfile.phone || backendProfile.phone || '',
-    bio: extendedProfile.bio || backendProfile.bio || 'Premium member who loves caring for rescued pets and exploring sustainable products.',
-    memberSince: user.date_joined,
-    loyaltyTier: backendProfile.loyalty_tier || 'Standard',
-    points: backendProfile.loyalty_points || 0,
-    petsSupported: backendProfile.pets_supported || 0,
-    addresses: extendedProfile.addresses || ADMIN_DUMMY_DATA.addresses,
-    preferences: extendedProfile.preferences || {},
-    recentOrders: extendedProfile.recentOrders || ADMIN_DUMMY_DATA.recentOrders,
-    careNotes: extendedProfile.careNotes || ADMIN_DUMMY_DATA.careNotes,
-    scheduled: extendedProfile.scheduled || ADMIN_DUMMY_DATA.scheduled,
-    favorites: extendedProfile.favorites || ADMIN_DUMMY_DATA.favorites,
-  };
-
-  // Admin Profile View - Enhanced with rich UI
-  if (isAdmin) {
-    return (
-      <div className="profile-page">
-        <section className="profile-hero">
-          <div className="profile-identity">
-            <div className="avatar-circle">
-              <span role="img" aria-label="Admin">👑</span>
-            </div>
-            <div>
-              <h1>{profile.name} (Admin)</h1>
-              <p className="admin-badge" style={{ marginTop: '8px', fontSize: '14px', color: '#7c5cb0' }}>Administrator Account</p>
-              <p className="profile-hero-subtitle">{profile.bio || 'System Administrator'}</p>
-              <div className="profile-contact-line">
-                <span>{profile.email}</span>
-                {profile.phone && (
-                  <>
-                    <span>•</span>
-                    <span>{profile.phone}</span>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="profile-badges">
-            <div className="badge">
-              <span className="badge-label">Role</span>
-              <span className="badge-value">Admin</span>
-              <small>System Administrator</small>
-            </div>
-            <div className="badge">
-              <span className="badge-label">Member Since</span>
-              <span className="badge-value">{formatDate(profile.memberSince)}</span>
-              <small>Account Created</small>
-            </div>
-            <div className="badge">
-              <span className="badge-label">Username</span>
-              <span className="badge-value">{user.username}</span>
-              <small>Login ID</small>
-            </div>
-          </div>
-        </section>
-
-        <section className="admin-actions" style={{ marginBottom: '40px' }}>
-          <h2>Admin Actions</h2>
-          <div className="admin-links">
-            <a href="/product-manager/dashboard" className="admin-link-button">
-              Product Manager Dashboard
-            </a>
-            <a href="/admin/" className="admin-link-button" target="_blank" rel="noopener noreferrer">
-              Django Admin
-            </a>
-          </div>
-        </section>
-
-        <section className="profile-grid">
-          <article className="profile-card">
-            <header>
-              <h2>Admin Information</h2>
-              <p>Administrator account details and access information.</p>
-            </header>
-            <div style={{ padding: '20px' }}>
-              <p><strong>Email:</strong> {user.email}</p>
-              <p><strong>Username:</strong> {user.username}</p>
-              <p><strong>First Name:</strong> {user.first_name || 'Not set'}</p>
-              <p><strong>Last Name:</strong> {user.last_name || 'Not set'}</p>
-              <p><strong>Account Created:</strong> {formatDate(user.date_joined)}</p>
-              {user.is_superuser && <p><strong>Superuser:</strong> Yes</p>}
-              {user.is_staff && <p><strong>Staff:</strong> Yes</p>}
-            </div>
-          </article>
-
-          <article className="profile-card preferences-card">
-            <header>
-              <h2>Preferences & notifications</h2>
-              <p>Fine-tune the reminders and content we prepare just for you.</p>
-            </header>
-            <ul className="preference-list">
-              {Object.entries(profile.preferences).map(([key, preference]) => (
-                <li key={key} className="preference-item">
-                  <div>
-                    <p className="preference-label">{preference.label}</p>
-                    <p className="preference-description">{preference.description}</p>
-                  </div>
-                  <button
-                    type="button"
-                    className={`switch ${preference.enabled ? 'is-on' : ''}`}
-                    onClick={() => handleTogglePreference(key)}
-                  >
-                    <span className="switch-handle" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </article>
-        </section>
-
-        <section className="profile-footer">
-          <button type="button" className="signout-button" onClick={handleSignOut}>
-            Sign out
-          </button>
-        </section>
-      </div>
-    );
-  }
-
-  // Regular User Profile View - Rich UI with all features
   return (
     <div className="profile-page">
+      {error && (
+        <div style={{ 
+          padding: '1rem', 
+          margin: '1rem', 
+          backgroundColor: '#fee', 
+          border: '1px solid #fcc',
+          borderRadius: '4px',
+          color: '#c33'
+        }}>
+          {error}
+        </div>
+      )}
       <section className="profile-hero">
         <div className="profile-identity">
           <div className="avatar-circle">
-            <span role="img" aria-label="Paw print">🐾</span>
+            <span role="img" aria-label="Paw print">
+              🐾
+            </span>
           </div>
           <div>
             <h1>{profile.name}</h1>
             <p className="profile-hero-subtitle">{profile.bio}</p>
             <div className="profile-contact-line">
               <span>{profile.email}</span>
-              {profile.phone && (
-                <>
-                  <span>•</span>
-                  <span>{profile.phone}</span>
-                </>
-              )}
+              <span>•</span>
+              <span>{profile.phone}</span>
             </div>
           </div>
         </div>
@@ -495,90 +377,82 @@ function Profile() {
       </section>
 
       <section className="profile-grid">
-        {profile.addresses.length > 0 && (
-          <article className="profile-card addresses-card">
-            <header>
-              <h2>Delivery addresses</h2>
-              <p>Manage where your packages go and set your default drop point.</p>
-            </header>
-            <div className="address-list">
-              {profile.addresses.map((address) => (
-                <div
-                  key={address.id}
-                  className={`address-card ${address.isDefault ? 'is-default' : ''}`}
-                >
-                  <div className="address-header">
-                    <span className="address-label">{address.label}</span>
-                    {address.isDefault && <span className="address-pill">Default</span>}
-                  </div>
-                  <p className="address-recipient">{address.recipient}</p>
-                  <p className="address-lines">
-                    {address.lines && address.lines.length > 0 && address.lines[0] ? (
-                      [...address.lines, `${address.postalCode || ''} ${address.city || ''}`].filter(Boolean).join(', ')
-                    ) : (
-                      <span style={{ color: '#999', fontStyle: 'italic' }}>No address set</span>
-                    )}
-                  </p>
-                  {address.phone && <p className="address-phone">{address.phone}</p>}
-                  {address.notes && <p className="address-notes">{address.notes}</p>}
-                  {!address.isDefault && (
-                    <button
-                      type="button"
-                      className="ghost-button"
-                      onClick={() => handleSetDefaultAddress(address.id)}
-                    >
-                      Set as default
-                    </button>
-                  )}
+        <article className="profile-card addresses-card">
+          <header>
+            <h2>Delivery addresses</h2>
+            <p>Manage where your packages go and set your default drop point.</p>
+          </header>
+          <div className="address-list">
+            {profile.addresses.map((address) => (
+              <div
+                key={address.id}
+                className={`address-card ${address.isDefault ? 'is-default' : ''}`}
+              >
+                <div className="address-header">
+                  <span className="address-label">{address.label}</span>
+                  {address.isDefault && <span className="address-pill">Default</span>}
                 </div>
-              ))}
-            </div>
-          </article>
-        )}
+                <p className="address-recipient">{address.recipient}</p>
+                <p className="address-lines">
+                  {[...address.lines, `${address.postalCode} ${address.city}`].join(', ')}
+                </p>
+                <p className="address-phone">{address.phone}</p>
+                <p className="address-notes">{address.notes}</p>
+                {!address.isDefault && (
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={() => handleSetDefaultAddress(address.id)}
+                  >
+                    Set as default
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </article>
 
-        {profile.recentOrders.length > 0 && (
-          <article className="profile-card orders-card">
-            <header>
-              <h2>Recent orders</h2>
-              <p>Track deliveries and reorder your favourites in one tap.</p>
-            </header>
-            <div className="order-list">
-              {profile.recentOrders.map((order) => (
-                <div key={order.id} className="order-item">
-                  <div className="order-meta">
-                    <span className="order-id">{order.id}</span>
-                    <span className={`status-chip status-${order.status.toLowerCase().replace(/\s+/g, '-')}`}>
-                      {order.status}
-                    </span>
-                  </div>
-                  <p className="order-date">{formatDate(order.date)}</p>
-                  <p className="order-total">
-                    {order.total.toLocaleString('tr-TR', {
-                      style: 'currency',
-                      currency: order.currency || 'TRY',
-                    })}
-                  </p>
-                  <ul className="order-products">
-                    {order.items.map((item, index) => (
-                      <li key={`${order.id}-${index}`}>
-                        {item.name}
-                        <span className="quantity">×{item.quantity}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="order-actions">
-                    <button type="button" className="primary-link">
-                      View order
-                    </button>
-                    <button type="button" className="ghost-button">
-                      Buy again
-                    </button>
-                  </div>
+        <article className="profile-card orders-card">
+          <header>
+            <h2>Recent orders</h2>
+            <p>Track deliveries and reorder your favourites in one tap.</p>
+          </header>
+          <div className="order-list">
+            {profile.recentOrders.map((order) => (
+              <div key={order.id} className="order-item">
+                <div className="order-meta">
+                  <span className="order-id">{order.id}</span>
+                  <span className={`status-chip status-${order.status.toLowerCase().replace(/\s+/g, '-')}`}>
+                    {order.status}
+                  </span>
                 </div>
-              ))}
-            </div>
-          </article>
-        )}
+                <p className="order-date">{formatDate(order.date)}</p>
+                <p className="order-total">
+                  {order.total.toLocaleString('tr-TR', {
+                    style: 'currency',
+                    currency: order.currency,
+                  })}
+                </p>
+                <ul className="order-products">
+                  {order.items.map((item, index) => (
+                    <li key={`${order.id}-${index}`}>
+                      {item.name}
+                      <span className="quantity">×{item.quantity}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="order-actions">
+                  <button type="button" className="primary-link">
+                    View order
+                  </button>
+                  <button type="button" className="ghost-button">
+                    Buy again
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </article>
 
         <article className="profile-card preferences-card">
           <header>
@@ -604,66 +478,59 @@ function Profile() {
           </ul>
         </article>
 
-        {profile.careNotes.length > 0 && (
-          <article className="profile-card care-card">
-            <header>
-              <h2>Care notes</h2>
-              <p>Keep quick notes for your vet and groomer to stay in sync.</p>
-            </header>
-            <ul className="care-note-list">
-              {profile.careNotes.map((note) => (
-                <li key={note.id} className="care-note">
-                  <div className="care-note-header">
-                    <span className="care-note-pet">{note.pet}</span>
-                    <span className="care-note-type">{note.type}</span>
-                  </div>
-                  <p>{note.text}</p>
-                </li>
-              ))}
-            </ul>
-          </article>
-        )}
+        <article className="profile-card care-card">
+          <header>
+            <h2>Care notes</h2>
+            <p>Keep quick notes for your vet and groomer to stay in sync.</p>
+          </header>
+          <ul className="care-note-list">
+            {profile.careNotes.map((note) => (
+              <li key={note.id} className="care-note">
+                <div className="care-note-header">
+                  <span className="care-note-pet">{note.pet}</span>
+                  <span className="care-note-type">{note.type}</span>
+                </div>
+                <p>{note.text}</p>
+              </li>
+            ))}
+          </ul>
+        </article>
 
-        {profile.scheduled.length > 0 && (
-          <article className="profile-card schedule-card">
-            <header>
-              <h2>Upcoming appointments</h2>
-              <p>Stay ahead of clinic visits and pamper sessions.</p>
-            </header>
-            <ul className="schedule-list">
-              {profile.scheduled.map((item) => (
-                <li key={item.id} className="schedule-item">
-                  <div>
-                    <p className="schedule-date">
-                      {formatDate(item.date)} · {item.time}
-                    </p>
-                    <p className="schedule-title">{item.title}</p>
-                    <p className="schedule-location">{item.location}</p>
-                  </div>
-                  {item.notes && <p className="schedule-notes">{item.notes}</p>}
-                </li>
-              ))}
-            </ul>
-          </article>
-        )}
+        <article className="profile-card schedule-card">
+          <header>
+            <h2>Upcoming appointments</h2>
+            <p>Stay ahead of clinic visits and pamper sessions.</p>
+          </header>
+          <ul className="schedule-list">
+            {profile.scheduled.map((item) => (
+              <li key={item.id} className="schedule-item">
+                <div>
+                  <p className="schedule-date">
+                    {formatDate(item.date)} · {item.time}
+                  </p>
+                  <p className="schedule-title">{item.title}</p>
+                  <p className="schedule-location">{item.location}</p>
+                </div>
+                <p className="schedule-notes">{item.notes}</p>
+              </li>
+            ))}
+          </ul>
+        </article>
 
-        {profile.favorites.length > 0 && (
-          <article className="profile-card favorites-card">
-            <header>
-              <h2>Favorite products</h2>
-              <p>Access your most-loved picks without searching.</p>
-            </header>
-            <div className="favorites-chip-row">
-              {profile.favorites.map((favorite) => (
-                <span key={favorite} className="favorite-chip">
-                  {favorite}
-                </span>
-              ))}
-            </div>
-          </article>
-        )}
+        <article className="profile-card favorites-card">
+          <header>
+            <h2>Favorite products</h2>
+            <p>Access your most-loved picks without searching.</p>
+          </header>
+          <div className="favorites-chip-row">
+            {profile.favorites.map((favorite) => (
+              <span key={favorite} className="favorite-chip">
+                {favorite}
+              </span>
+            ))}
+          </div>
+        </article>
       </section>
-
       <section className="profile-footer">
         <button type="button" className="signout-button" onClick={handleSignOut}>
           Sign out
@@ -674,3 +541,5 @@ function Profile() {
 }
 
 export default Profile;
+
+

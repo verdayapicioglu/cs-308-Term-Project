@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "../context/CartContext";
+import { saveOrder } from "./reviewUtils";
 import "./Cart.css";
 import PaymentMockFlow from "./PaymentMockFlow";
 
@@ -45,6 +46,30 @@ export default function Cart() {
 
   const handlePaymentSuccess = (newOrderId) => {
     setOrderId(newOrderId);
+    
+    // Save order to localStorage for review/rating functionality
+    if (isAuthenticated && cartItems.length > 0) {
+      const userId = localStorage.getItem('user_id') || userEmail;
+      // For testing purposes, set status to 'delivered' so users can review products immediately
+      // In production, this would be updated by an admin or delivery system
+      const order = saveOrder({
+        id: newOrderId,
+        userId: userId,
+        userName: userName || 'User',
+        userEmail: userEmail,
+        items: cartItems.map(item => ({
+          productId: item.id,
+          productName: item.name,
+          quantity: item.quantity || 1,
+          price: item.price || 0,
+        })),
+        total: total,
+        currency: 'TRY',
+        status: 'delivered', // Set to 'delivered' so users can review products immediately
+        deliveryAddress: localStorage.getItem('user_address') || '',
+      });
+      console.log('Order saved:', order);
+    }
   };
 
   const handlePaymentCancel = () => {

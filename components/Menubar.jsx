@@ -1,91 +1,70 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import "./Menubar.css";
-import { authAPI, clearUserData } from "./api";
+import { clearUserData } from "./api";
 
 export default function Menubar() {
-  const navigate = useNavigate();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const authCheckedRef = useRef(false);
-
-  const checkAuthStatus = async () => {
-    const storedAuth = localStorage.getItem('is_authenticated');
-    if (storedAuth === 'true') {
-      try {
-        const response = await authAPI.getCurrentUser();
-        if (response.data) {
-          setUser(response.data);
-          setIsAuthenticated(true);
-          authCheckedRef.current = true;
-        } else {
-          setIsAuthenticated(false);
-          authCheckedRef.current = false;
-          clearUserData();
-        }
-      } catch (error) {
-        setIsAuthenticated(false);
-        authCheckedRef.current = false;
-        clearUserData();
-      }
-    } else {
-      setIsAuthenticated(false);
-      authCheckedRef.current = false;
-    }
-    setLoading(false);
-  };
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [userEmail, setUserEmail] = useState("");
+  const navigate = useNavigate();
 
   useEffect(() => {
-    checkAuthStatus();
-    
-    // Listen for storage changes (when user logs in/out in another tab)
-    const handleStorageChange = (e) => {
-      if (e.key === 'is_authenticated') {
-        checkAuthStatus();
-      }
+    // Check authentication status from localStorage
+    const authStatus = localStorage.getItem("is_authenticated") === "true";
+    const adminStatus = localStorage.getItem("is_admin") === "true" || 
+                        localStorage.getItem("is_staff") === "true" || 
+                        localStorage.getItem("is_superuser") === "true";
+    const email = localStorage.getItem("user_email") || "";
+
+    setIsAuthenticated(authStatus);
+    setIsAdmin(adminStatus);
+    setUserEmail(email);
+  }, []);
+
+  // Listen for storage changes (when user logs in/out in another tab)
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const authStatus = localStorage.getItem("is_authenticated") === "true";
+      const adminStatus = localStorage.getItem("is_admin") === "true" || 
+                          localStorage.getItem("is_staff") === "true" || 
+                          localStorage.getItem("is_superuser") === "true";
+      const email = localStorage.getItem("user_email") || "";
+
+      setIsAuthenticated(authStatus);
+      setIsAdmin(adminStatus);
+      setUserEmail(email);
     };
-    
-    window.addEventListener('storage', handleStorageChange);
-    
-    // Also check periodically to catch login changes (when user logs in on same page)
-    const interval = setInterval(() => {
-      const currentAuth = localStorage.getItem('is_authenticated');
-      const wasAuthenticated = authCheckedRef.current;
-      
-      if (currentAuth === 'true' && !wasAuthenticated) {
-        // User just logged in - check auth status
-        checkAuthStatus();
-      } else if (currentAuth !== 'true' && wasAuthenticated) {
-        // User just logged out - update state
-        setIsAuthenticated(false);
-        setUser(null);
-        authCheckedRef.current = false;
-      }
-    }, 2000); // Check every 2 seconds
-    
+
+    window.addEventListener("storage", handleStorageChange);
+    // Also check on focus (in case login happened in same tab)
+    window.addEventListener("focus", handleStorageChange);
+
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      clearInterval(interval);
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("focus", handleStorageChange);
     };
-  }, []); // Only run on mount
+  }, []);
 
   const handleLogout = async () => {
     try {
-      await authAPI.logout();
-    } catch (error) {
-      console.error('Logout error:', error);
-    } finally {
+      // Clear localStorage
       clearUserData();
       setIsAuthenticated(false);
-      setUser(null);
-      navigate('/login');
+      setIsAdmin(false);
+      setUserEmail("");
+      // Navigate to login
+      navigate("/login");
+    } catch (error) {
+      console.error("Logout error:", error);
+      // Still clear local data even if API call fails
+      clearUserData();
+      setIsAuthenticated(false);
+      setIsAdmin(false);
+      setUserEmail("");
+      navigate("/login");
     }
   };
-
-  const userName = user 
-    ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username
-    : localStorage.getItem('user_name') || 'User';
 
   return (
     <nav className="menubar">
@@ -98,26 +77,23 @@ export default function Menubar() {
         <Link to="/categories">Categories</Link>
         <Link to="/about">About Us</Link>
         <Link to="/cart">Cart</Link>
+        <Link to="/profile">Profile</Link>
+        {isAdmin && (
+          <Link to="/product-manager/comments">Comment Approval</Link>
+        )}
       </div>
       <div className="user-section">
-        {!loading && (
+        {isAuthenticated ? (
           <>
-            {isAuthenticated ? (
-              <>
-                <span className="user-email">{user?.email || localStorage.getItem('user_email') || userName}</span>
-                <Link to="/profile" className="profile-link">
-                  Profile
-                </Link>
-                <button className="logout-btn" onClick={handleLogout}>
-                  Logout
-                </button>
-              </>
-            ) : (
-              <Link className="login-link" to="/login">
-                Login
-              </Link>
-            )}
+            <span className="user-email">{userEmail}</span>
+            <button className="logout-btn" onClick={handleLogout}>
+              Logout
+            </button>
           </>
+        ) : (
+          <Link className="login-link" to="/login">
+            Login
+          </Link>
         )}
       </div>
     </nav>

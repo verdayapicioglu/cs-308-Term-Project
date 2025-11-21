@@ -16,40 +16,38 @@ function Login() {
     setLoading(true);
 
     try {
-      // Try to login with email or username
-      // Backend accepts username, so we'll use email as username (Django allows this)
+      // Call backend API for login
       const response = await authAPI.login(email, password);
       
       if (response.data && response.data.user) {
-        // Store user data in localStorage for frontend state
-        storeUserData(response.data.user);
+        const user = response.data.user;
         
-        // Success - redirect to products page
+        // Store user data in localStorage
+        storeUserData(user);
+        
+        // Also store additional profile data if available
+        if (user.profile) {
+          localStorage.setItem('user_phone', user.profile.phone || '');
+          localStorage.setItem('user_bio', user.profile.bio || '');
+        }
+        
+        // Successful login - redirect to products page
         navigate('/products');
       } else {
         setError('Login failed. Please try again.');
       }
     } catch (error) {
-      // Handle API errors
-      let errorMessage = 'Failed to login. Please check your credentials.';
-      
-      // Check if error has detailed response
-      if (error.response) {
-        const errorData = error.response.data || error.response;
-        if (errorData.error) {
-          errorMessage = errorData.error;
-        } else if (errorData.detail) {
-          errorMessage = errorData.detail;
-        } else if (errorData.message) {
-          errorMessage = errorData.message;
-        }
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      setError(errorMessage);
       console.error('Login error:', error);
-      console.error('Error response:', error.response);
+      
+      // Handle different error types
+      if (error.response) {
+        const errorData = error.response.data;
+        setError(errorData.error || errorData.detail || 'Invalid email or password. Please try again.');
+      } else if (error.message) {
+        setError(error.message);
+      } else {
+        setError('Failed to login. Please check your connection and try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -108,7 +106,7 @@ function Login() {
           Don't have an account? <Link to="/signup">Sign up here</Link>
         </p>
         <div className="mock-info">
-          <small>Demo: admin@petstore.com / admin123</small>
+          <small>Test accounts available in database. Use any registered email/username and password.</small>
         </div>
       </div>
     </div>

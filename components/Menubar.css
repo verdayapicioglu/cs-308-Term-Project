@@ -12,7 +12,6 @@
   position: sticky;
   top: 0;
   z-index: 1000;
-  font-family: 'Helvetica', 'Helvetica Neue', Arial, sans-serif;
 }
 
 .menu-links {
@@ -128,22 +127,6 @@
 .user-email {
   font-size: 0.9rem;
   opacity: 0.9;
-}
-
-.profile-link {
-  color: white;
-  text-decoration: none;
-  font-weight: 500;
-  font-size: 0.95rem;
-  padding: 8px 16px;
-  border-radius: 5px;
-  background: rgba(255, 255, 255, 0.15);
-  transition: background-color 0.3s ease, transform 0.3s ease;
-}
-
-.profile-link:hover {
-  background: rgba(255, 255, 255, 0.25);
-  transform: translateY(-1px);
 }
 
 .logout-btn {

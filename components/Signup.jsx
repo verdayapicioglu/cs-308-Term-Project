@@ -1,15 +1,37 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './Signup.css';
-import { authAPI, storeUserData } from './api';
+
+// Mock users - localStorage'dan yüklenir
+const getMockUsers = () => {
+  const stored = localStorage.getItem('mock_users');
+  if (stored) {
+    return JSON.parse(stored);
+  }
+  // Varsayılan mock kullanıcılar
+  const defaultUsers = [
+    {
+      id: '1',
+      email: 'admin@petstore.com',
+      password: 'admin123',
+      name: 'Admin User',
+    },
+    {
+      id: '2',
+      email: 'user@example.com',
+      password: 'password123',
+      name: 'Test User',
+    }
+  ];
+  localStorage.setItem('mock_users', JSON.stringify(defaultUsers));
+  return defaultUsers;
+};
 
 function Signup() {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     confirmPassword: '',
-    firstName: '',
-    lastName: '',
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -42,88 +64,51 @@ function Signup() {
       return;
     }
 
-    if (!formData.firstName.trim()) {
-      setError('Please enter your first name');
-      return;
-    }
-
     setLoading(true);
 
-    try {
-      // Generate username from email (before @ symbol)
-      const username = formData.email.split('@')[0].toLowerCase();
-      
-      // Prepare registration data
-      const registrationData = {
-        username: username,
-        email: formData.email.toLowerCase(),
-        password: formData.password,
-        password2: formData.confirmPassword,
-        first_name: formData.firstName,
-        last_name: formData.lastName || '',
-      };
-
-      // Call API to register
-      const response = await authAPI.register(registrationData);
-      
-      if (response.data && response.data.user) {
-        // Store user data in localStorage
-        storeUserData(response.data.user);
+    // Simüle edilmiş API çağrısı (gerçekçi loading için)
+    setTimeout(() => {
+      try {
+        const mockUsers = getMockUsers();
         
-        // Success - redirect to products page
-        navigate('/products');
-      } else {
-        setError('Registration failed. Please try again.');
-      }
-    } catch (error) {
-      // Handle API errors
-      let errorMessage = 'Failed to sign up. Please try again.';
-      
-      // Check if error has detailed response
-      if (error.message) {
-        // Try to parse error response
-        try {
-          // If error has a response object, try to get detailed errors
-          if (error.response) {
-            const errorData = error.response.data || error.response;
-            if (errorData.errors) {
-              // Format validation errors
-              const errorList = Object.entries(errorData.errors).map(([field, messages]) => {
-                if (Array.isArray(messages)) {
-                  return `${field}: ${messages.join(', ')}`;
-                }
-                return `${field}: ${messages}`;
-              });
-              errorMessage = errorList.join('\n');
-            } else if (errorData.error) {
-              errorMessage = errorData.error;
-            } else if (errorData.detail) {
-              errorMessage = errorData.detail;
-            }
-          } else {
-            // Check for specific error messages from backend
-            if (error.message.includes('email')) {
-              errorMessage = 'This email is already registered. Please use a different email or login.';
-            } else if (error.message.includes('username')) {
-              errorMessage = 'This username is already taken. Please try a different email.';
-            } else if (error.message.includes('password')) {
-              errorMessage = error.message;
-            } else {
-              errorMessage = error.message;
-            }
-          }
-        } catch (parseError) {
-          // If parsing fails, use original error message
-          errorMessage = error.message || 'Failed to sign up. Please try again.';
+        // Email zaten kullanılıyor mu kontrol et
+        const emailExists = mockUsers.some(
+          (u) => u.email === formData.email.toLowerCase()
+        );
+
+        if (emailExists) {
+          setError('This email is already registered. Please use a different email or login.');
+          setLoading(false);
+          return;
         }
+
+        // Yeni kullanıcı oluştur
+        const newUser = {
+          id: Date.now().toString(), // Basit ID oluşturma
+          email: formData.email.toLowerCase(),
+          password: formData.password,
+          name: formData.email.split('@')[0], // Email'den isim oluştur
+        };
+
+        // Mock users listesine ekle
+        mockUsers.push(newUser);
+        localStorage.setItem('mock_users', JSON.stringify(mockUsers));
+
+        // Kullanıcı bilgilerini localStorage'a kaydet
+        localStorage.setItem('user_email', newUser.email);
+        localStorage.setItem('user_name', newUser.name);
+        localStorage.setItem('user_id', newUser.id);
+        localStorage.setItem('is_authenticated', 'true');
+        
+        // Başarılı signup - products sayfasına yönlendir
+        navigate('/products');
+      } catch (error) {
+        setError('Failed to sign up. Please try again.');
+        console.error('Signup error:', error);
+      } finally {
+        setLoading(false);
       }
-      
-      setError(errorMessage);
-      console.error('Signup error:', error);
-      console.error('Error details:', error.response || error);
-    } finally {
-      setLoading(false);
-    }
+    }, 1000); // 1 saniye loading simülasyonu
   };
 
   return (
@@ -135,29 +120,6 @@ function Signup() {
         </h2>
         {error && <div className="error-message">{error}</div>}
         <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label htmlFor="firstName">First Name</label>
-            <input
-              type="text"
-              id="firstName"
-              name="firstName"
-              value={formData.firstName}
-              onChange={handleChange}
-              required
-              placeholder="Enter your first name"
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="lastName">Last Name (Optional)</label>
-            <input
-              type="text"
-              id="lastName"
-              name="lastName"
-              value={formData.lastName}
-              onChange={handleChange}
-              placeholder="Enter your last name"
-            />
-          </div>
           <div className="form-group">
             <label htmlFor="email">Email</label>
             <input
