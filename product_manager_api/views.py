@@ -140,9 +140,24 @@ MOCK_CATEGORIES = ["Food", "Accessories", "Housing", "Toys", "Health"]
 def product_list_create(request):
     """Get all products or create a new product"""
     if request.method == 'GET':
+        # Get sort parameter
+        sort_option = request.query_params.get('sort', '').strip().lower()
+        
+        # Start with all products
+        products = MOCK_PRODUCTS.copy()
+        
+        # Apply sorting
+        if sort_option == 'price':
+            # Sort by price ascending, then by name
+            products.sort(key=lambda p: (float(p.get('price', 0)), p.get('name', '').lower()))
+        elif sort_option == 'popularity':
+            # Sort by popularity (stock quantity descending - highest stock = most popular), then by name
+            # Using negative value to sort descending (highest first)
+            products.sort(key=lambda p: (-int(p.get('quantity_in_stock', 0)), p.get('name', '').lower()))
+        
         return Response({
-            'products': MOCK_PRODUCTS,
-            'count': len(MOCK_PRODUCTS)
+            'products': products,
+            'count': len(products)
         }, status=status.HTTP_200_OK)
     
     elif request.method == 'POST':
