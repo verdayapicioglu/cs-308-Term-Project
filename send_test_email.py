@@ -38,7 +38,9 @@ Pet Store Ekibi
         return False
 
 if __name__ == "__main__":
-    # Test
-    test_email = "almiraaygun@sabanciuniv.edu"
+    # Test - Kendi Gmail adresine gönder
+    test_email = "almiraaygun@gmail.com"
     test_details = "Test Ürün x1 - 100 TL"
     send_order_email(test_email, test_details)
+
+

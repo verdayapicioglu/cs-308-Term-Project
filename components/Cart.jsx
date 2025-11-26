@@ -196,6 +196,7 @@ export default function Cart() {
         <PaymentMockFlow
           amount={total}
           currency="TRY"
+          cartItems={cartItems}
           onSuccess={handlePaymentSuccess}
           onCancel={handlePaymentCancel}
         />

@@ -62,7 +62,7 @@ function ForgotPassword() {
       const user = users.find((u) => u.email === normalizedEmail);
 
       if (!user) {
-        setError('We couldn’t find an account with that email.');
+        setError(`Bu email ile kayıtlı hesap bulunamadı: ${normalizedEmail}. Lütfen önce Sign Up sayfasından kayıt olun veya kayıtlı bir email kullanın (örn: admin@petstore.com)`);
         return;
       }
 
@@ -83,7 +83,7 @@ function ForgotPassword() {
         `https://petstore.example/reset-password?token=${resetToken}`
       );
       setInfo(
-        `Reset link generated! Use the token sent to ${user.email}. (Check the browser console in this demo.)`
+        `✅ Reset token oluşturuldu! Token: ${resetToken} (Bu token'ı aşağıdaki alana yapıştırın)`
       );
       setToken(resetToken);
       setMode('reset');

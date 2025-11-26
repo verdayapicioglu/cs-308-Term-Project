@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import "./Menubar.css";
 import { clearUserData } from "./api";
 
@@ -8,19 +8,25 @@ export default function Menubar() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [userEmail, setUserEmail] = useState("");
   const navigate = useNavigate();
+  const location = useLocation();
 
+  // Check authentication status on mount and when location changes
   useEffect(() => {
-    // Check authentication status from localStorage
-    const authStatus = localStorage.getItem("is_authenticated") === "true";
-    const adminStatus = localStorage.getItem("is_admin") === "true" || 
-                        localStorage.getItem("is_staff") === "true" || 
-                        localStorage.getItem("is_superuser") === "true";
-    const email = localStorage.getItem("user_email") || "";
+    const checkAuth = () => {
+      const authStatus = localStorage.getItem("is_authenticated") === "true";
+      const adminStatus = localStorage.getItem("is_admin") === "true" || 
+                          localStorage.getItem("is_staff") === "true" || 
+                          localStorage.getItem("is_superuser") === "true";
+      const email = localStorage.getItem("user_email") || "";
 
-    setIsAuthenticated(authStatus);
-    setIsAdmin(adminStatus);
-    setUserEmail(email);
-  }, []);
+      setIsAuthenticated(authStatus);
+      setIsAdmin(adminStatus);
+      setUserEmail(email);
+    };
+    
+    // Check immediately
+    checkAuth();
+  }, [location]);
 
   // Listen for storage changes (when user logs in/out in another tab)
   useEffect(() => {
