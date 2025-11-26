@@ -196,3 +196,4 @@ export const getUserRating = (userId, productId) => {
     rating.productId === productId
   );
 };
+

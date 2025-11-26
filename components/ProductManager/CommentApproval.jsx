@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { productManagerAPI } from '../api.js';
+import { getAllReviews, updateReviewStatus } from '../reviewUtils';
 import './CommentApproval.css';
 
 function CommentApproval() {
@@ -8,32 +8,19 @@ function CommentApproval() {
   const [error, setError] = useState('');
   const [statusFilter, setStatusFilter] = useState('pending');
   const [message, setMessage] = useState('');
-  const [stats, setStats] = useState({ pending: 0, approved: 0, rejected: 0, total: 0 });
 
   useEffect(() => {
     loadComments();
   }, [statusFilter]);
 
-  const loadComments = async () => {
+  const loadComments = () => {
     try {
       setLoading(true);
       setError('');
-      const response = await productManagerAPI.getComments(statusFilter || null);
-      const allComments = response.data.comments || [];
-      
+      const allComments = getAllReviews(statusFilter || null);
       // Sort by date - newest first
-      allComments.sort((a, b) => new Date(b.date || b.created_at) - new Date(a.date || a.created_at));
+      allComments.sort((a, b) => new Date(b.date) - new Date(a.date));
       setComments(allComments);
-      
-      // Update stats
-      const allResponse = await productManagerAPI.getComments();
-      const all = allResponse.data.comments || [];
-      setStats({
-        pending: all.filter(c => c.status === 'pending').length,
-        approved: all.filter(c => c.status === 'approved').length,
-        rejected: all.filter(c => c.status === 'rejected').length,
-        total: all.length,
-      });
     } catch (err) {
       setError('Failed to load comments');
       console.error('Error:', err);
@@ -42,10 +29,9 @@ function CommentApproval() {
     }
   };
 
-  const handleApprove = async (commentId, action) => {
+  const handleApprove = (commentId, action) => {
     try {
-      setError('');
-      await productManagerAPI.approveComment(commentId, action);
+      updateReviewStatus(commentId, action);
       setMessage(`Comment ${action === 'approve' ? 'approved' : 'rejected'} successfully!`);
       setTimeout(() => setMessage(''), 3000);
       loadComments(); // Reload comments
@@ -67,6 +53,11 @@ function CommentApproval() {
     return <div className="star-rating">{stars}</div>;
   };
 
+  const getPendingCount = () => {
+    const pending = getAllReviews('pending');
+    return pending.length;
+  };
+
   if (loading) {
     return (
       <div className="comment-approval-container">
@@ -78,81 +69,87 @@ function CommentApproval() {
     );
   }
 
-  const pendingCount = stats.pending;
+  const pendingCount = getPendingCount();
 
   return (
     <div className="comment-approval-container">
-      <div className="ca-main-card">
-        <div className="ca-header">
-          <div className="ca-title-section">
-            <h1>
-              <span className="ca-icon">💬</span>
-              Comment Approval Management
-            </h1>
-            <p className="ca-subtitle">Review and approve customer comments</p>
-          </div>
+      <div className="ca-header">
+        <div>
+          <h1>Comment Approval Management</h1>
+          <p className="ca-subtitle">Review and approve customer comments</p>
         </div>
-
-        <div className="filter-section">
-          <div className="filter-controls">
-            <label htmlFor="status-filter">Filter by Status:</label>
-            <select
-              id="status-filter"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="status-filter"
-            >
-              <option value="">All Comments</option>
-              <option value="pending">Pending ({stats.pending})</option>
-              <option value="approved">Approved ({stats.approved})</option>
-              <option value="rejected">Rejected ({stats.rejected})</option>
-            </select>
-          </div>
-        </div>
-
-        {message && (
-          <div className="success-message">
-            {message}
+        {pendingCount > 0 && (
+          <div className="pending-badge">
+            <span className="pending-count">{pendingCount}</span>
+            <span className="pending-text">Pending Review{pendingCount !== 1 ? 's' : ''}</span>
           </div>
         )}
+      </div>
 
-        {error && <div className="ca-error">{error}</div>}
-
-        <div className="comments-stats">
-          <div className="stat-card pending-stat">
-            <span className="stat-label">PENDING</span>
-            <span className="stat-value">{stats.pending}</span>
-          </div>
-          <div className="stat-card approved-stat">
-            <span className="stat-label">APPROVED</span>
-            <span className="stat-value">{stats.approved}</span>
-          </div>
-          <div className="stat-card rejected-stat">
-            <span className="stat-label">REJECTED</span>
-            <span className="stat-value">{stats.rejected}</span>
-          </div>
+      <div className="filter-section">
+        <div className="filter-controls">
+          <label htmlFor="status-filter">Filter by Status:</label>
+          <select
+            id="status-filter"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="status-filter"
+          >
+            <option value="">All Comments</option>
+            <option value="pending">Pending ({getAllReviews('pending').length})</option>
+            <option value="approved">Approved ({getAllReviews('approved').length})</option>
+            <option value="rejected">Rejected ({getAllReviews('rejected').length})</option>
+          </select>
         </div>
+      </div>
 
-        <div className="comments-grid">
-          {comments.length === 0 ? (
-            <div className="no-comments">
-              <div className="no-comments-icon">💬</div>
-              <h3>No comments found</h3>
-              <p>
-                {statusFilter 
-                  ? `No ${statusFilter} comments at the moment.` 
-                  : 'No comments have been submitted yet.'}
-              </p>
-            </div>
-          ) : (
+      {message && (
+        <div className="success-message">
+          {message}
+        </div>
+      )}
+
+      {error && <div className="ca-error">{error}</div>}
+
+      <div className="comments-stats">
+        <div className="stat-card pending-stat">
+          <span className="stat-label">Pending</span>
+          <span className="stat-value">{getAllReviews('pending').length}</span>
+        </div>
+        <div className="stat-card approved-stat">
+          <span className="stat-label">Approved</span>
+          <span className="stat-value">{getAllReviews('approved').length}</span>
+        </div>
+        <div className="stat-card rejected-stat">
+          <span className="stat-label">Rejected</span>
+          <span className="stat-value">{getAllReviews('rejected').length}</span>
+        </div>
+        <div className="stat-card total-stat">
+          <span className="stat-label">Total</span>
+          <span className="stat-value">{getAllReviews().length}</span>
+        </div>
+      </div>
+
+      <div className="comments-grid">
+        {comments.length === 0 ? (
+          <div className="no-comments">
+            <div className="no-comments-icon">💬</div>
+            <h3>No comments found</h3>
+            <p>
+              {statusFilter 
+                ? `No ${statusFilter} comments at the moment.` 
+                : 'No comments have been submitted yet.'}
+            </p>
+          </div>
+        ) : (
           comments.map((comment) => (
             <div key={comment.id} className={`comment-card ${comment.status}`}>
               <div className="comment-header">
                 <div className="comment-product">
                   <span className="product-icon">📦</span>
                   <div>
-                    <strong>{comment.product_name || comment.productName || 'Unknown Product'}</strong>
-                    <span className="product-id">Product ID: {comment.product_id || comment.productId}</span>
+                    <strong>{comment.productName || 'Unknown Product'}</strong>
+                    <span className="product-id">Product ID: {comment.productId}</span>
                   </div>
                 </div>
                 <span className={`comment-status ${comment.status}`}>
@@ -179,14 +176,14 @@ function CommentApproval() {
                   <div className="author-info">
                     <span className="author-icon">👤</span>
                     <div>
-                      <strong>{comment.user_name || comment.userName || 'Anonymous'}</strong>
-                      <span className="comment-email">{comment.user_email || comment.userEmail || 'N/A'}</span>
+                      <strong>{comment.userName || 'Anonymous'}</strong>
+                      <span className="comment-email">{comment.userEmail || 'N/A'}</span>
                     </div>
                   </div>
                 </div>
                 <div className="comment-date">
                   <span className="date-icon">📅</span>
-                  Submitted: {new Date(comment.date || comment.created_at).toLocaleDateString('en-US', {
+                  Submitted: {new Date(comment.date).toLocaleDateString('en-US', {
                     year: 'numeric',
                     month: 'long',
                     day: 'numeric',
@@ -228,8 +225,7 @@ function CommentApproval() {
               )}
             </div>
           ))
-          )}
-        </div>
+        )}
       </div>
     </div>
   );

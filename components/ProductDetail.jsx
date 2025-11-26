@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { productManagerAPI } from './api';
+import { productsAPI } from '../product_manager_api';
 import { 
   hasDeliveredProduct, 
   hasReviewedProduct,
@@ -47,69 +47,15 @@ function ProductDetail() {
   const fetchProduct = async () => {
     try {
       setLoading(true);
-      setError('');
+      const response = await productsAPI.getProducts({});
+      const products = response.data || [];
+      const foundProduct = products.find(p => p.id === parseInt(id));
       
-      const productId = parseInt(id);
-      
-      // Try to fetch from backend API first
-      try {
-        const response = await productManagerAPI.getProduct(productId);
-        const foundProduct = response.data;
-        
-        if (foundProduct) {
-          // Map image based on product name/category
-          let imageUrl = '';
-          const nameLower = foundProduct.name.toLowerCase();
-          if (nameLower.includes('cat') && nameLower.includes('salmon')) {
-            imageUrl = '/images/cat-adult-salmon.jpeg';
-          } else if (nameLower.includes('kitten') || (nameLower.includes('cat') && nameLower.includes('chicken'))) {
-            imageUrl = '/images/kitten-chicken.jpeg';
-          } else if (nameLower.includes('dog') && (nameLower.includes('lamb') || nameLower.includes('adult'))) {
-            imageUrl = '/images/dog-adult-lamb.jpeg';
-          } else if (nameLower.includes('puppy') || (nameLower.includes('dog') && nameLower.includes('chicken'))) {
-            imageUrl = '/images/puppy-chicken.jpeg';
-          } else {
-            // Default image
-            imageUrl = '/images/cat-adult-salmon.jpeg';
-          }
-          
-          // Transform backend format to frontend format
-          setProduct({
-            id: foundProduct.id,
-            name: foundProduct.name,
-            description: foundProduct.description || '',
-            price: parseFloat(foundProduct.price) || 0,
-            category: foundProduct.category || '',
-            quantity_in_stock: foundProduct.quantity_in_stock || 0,
-            image_url: imageUrl,
-            model: foundProduct.model || '',
-            serial_number: foundProduct.serial_number || '',
-            warranty_status: foundProduct.warranty_status || '',
-            distributor: foundProduct.distributor || '',
-          });
-          setError('');
-          return;
-        }
-      } catch (backendErr) {
-        console.warn('Backend API failed, trying fallback:', backendErr);
-      }
-      
-      // Fallback: Try frontend mock API
-      try {
-        const { productsAPI } = await import('../product_manager_api');
-        const response = await productsAPI.getProducts({});
-        const products = response.data || [];
-        const foundProduct = products.find(p => p.id === productId);
-        
-        if (foundProduct) {
-          setProduct(foundProduct);
-          setError('');
-        } else {
-          setError('Product not found.');
-        }
-      } catch (fallbackErr) {
-        setError('Failed to load product. Please try again.');
-        console.error('Error fetching product:', fallbackErr);
+      if (foundProduct) {
+        setProduct(foundProduct);
+        setError('');
+      } else {
+        setError('Product not found.');
       }
     } catch (err) {
       setError('Failed to load product. Please try again.');
@@ -119,56 +65,15 @@ function ProductDetail() {
     }
   };
   
-  const loadReviewsAndRatings = async () => {
+  const loadReviewsAndRatings = () => {
     const productId = parseInt(id);
+    const approvedReviews = getApprovedReviews(productId);
+    const ratings = getProductRatings(productId);
+    const avgRating = getAverageRating(productId);
     
-    // Fetch approved reviews from backend
-    try {
-      const response = await productManagerAPI.getComments('approved');
-      const allApprovedReviews = response.data.comments || [];
-      const productReviews = allApprovedReviews.filter(
-        review => review.product_id === productId || review.productId === productId
-      );
-      
-      // Transform backend format to frontend format
-      const transformedReviews = productReviews.map(review => ({
-        id: review.id,
-        productId: review.product_id || review.productId,
-        productName: review.product_name || review.productName,
-        userId: review.user_id || review.userId,
-        userName: review.user_name || review.userName,
-        userEmail: review.user_email || review.userEmail,
-        rating: review.rating,
-        comment: review.comment,
-        status: review.status,
-        date: review.date || review.created_at,
-      }));
-      
-      setReviews(transformedReviews);
-      
-      // Calculate average rating from backend reviews
-      if (transformedReviews.length > 0) {
-        const avgRating = transformedReviews.reduce((sum, r) => sum + r.rating, 0) / transformedReviews.length;
-        setAverageRating(parseFloat(avgRating.toFixed(1)));
-        setTotalRatings(transformedReviews.length);
-      } else {
-        // Fallback to local ratings if no backend reviews
-        const ratings = getProductRatings(productId);
-        const avgRating = getAverageRating(productId);
-        setTotalRatings(ratings.length);
-        setAverageRating(parseFloat(avgRating));
-      }
-    } catch (err) {
-      console.error('Error loading reviews from backend:', err);
-      // Fallback to local reviews
-      const approvedReviews = getApprovedReviews(productId);
-      const ratings = getProductRatings(productId);
-      const avgRating = getAverageRating(productId);
-      
-      setReviews(approvedReviews);
-      setTotalRatings(ratings.length);
-      setAverageRating(parseFloat(avgRating));
-    }
+    setReviews(approvedReviews);
+    setTotalRatings(ratings.length);
+    setAverageRating(parseFloat(avgRating));
     
     // Check if user can review - Only if product was purchased AND delivered
     if (productId && userId) {
@@ -200,7 +105,7 @@ function ProductDetail() {
     setHoverValue(0); // Reset hover after selection
   };
   
-  const handleSubmitReview = async (e) => {
+  const handleSubmitReview = (e) => {
     e.preventDefault();
     
     if (!ratingValue || ratingValue === 0) {
@@ -215,57 +120,38 @@ function ProductDetail() {
     
     const productId = parseInt(id);
     
-    try {
-      // Save rating locally (immediate, no approval needed)
-      saveRating({
-        userId,
-        userName,
-        userEmail,
-        productId,
-        value: ratingType === 'stars' ? ratingValue : ratingValue / 2, // Convert points to stars for backend
-        type: ratingType,
-      });
-      
-      // Submit review to backend (needs approval)
-      // Backend expects 1-5 star rating, so convert if needed
-      const starRating = ratingType === 'stars' ? ratingValue : Math.round(ratingValue / 2);
-      
-      await productManagerAPI.createReview({
-        product_id: productId,
-        product_name: product?.name || '',
-        user_id: userId,
-        user_name: userName,
-        user_email: userEmail,
-        rating: starRating,
-        comment: comment.trim(),
-      });
-      
-      // Also save locally as backup
-      saveReview({
-        userId,
-        userName,
-        userEmail,
-        productId,
-        productName: product?.name || '',
-        comment: comment.trim(),
-        rating: starRating,
-      });
-      
-      setSubmitted(true);
-      setComment('');
-      setRatingValue(0);
-      setHoverValue(0);
-      
-      // Reload reviews and ratings
-      setTimeout(() => {
-        loadReviewsAndRatings();
-        setShowReviewForm(false);
-        setSubmitted(false);
-      }, 1500);
-    } catch (err) {
-      console.error('Error submitting review:', err);
-      alert('Failed to submit review. Please try again.');
-    }
+    // Save rating (immediate, no approval needed)
+    saveRating({
+      userId,
+      userName,
+      userEmail,
+      productId,
+      value: ratingValue,
+      type: ratingType,
+    });
+    
+    // Save review (needs approval)
+    saveReview({
+      userId,
+      userName,
+      userEmail,
+      productId,
+      productName: product?.name || '',
+      comment: comment.trim(),
+      rating: ratingValue, // Store rating with comment for display
+    });
+    
+    setSubmitted(true);
+    setComment('');
+    setRatingValue(0);
+    setHoverValue(0);
+    
+    // Reload reviews and ratings
+    setTimeout(() => {
+      loadReviewsAndRatings();
+      setShowReviewForm(false);
+      setSubmitted(false);
+    }, 1500);
   };
   
   const renderStarRating = (value, interactive = false, onChange = null) => {
@@ -552,3 +438,4 @@ function ProductDetail() {
 }
 
 export default ProductDetail;
+

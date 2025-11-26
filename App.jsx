@@ -11,7 +11,7 @@ import About from './components/About.jsx';
 import Categories from './components/Categories.jsx';
 import ForgotPassword from './components/ForgotPassword.jsx';
 import Profile from './components/Profile.jsx';
-import CommentApproval from './components/ProductManager/CommentApproval';
+import CommentApproval from './components/ProductManager/CommentApproval.jsx';
 import { CartProvider } from './context/CartContext';
 import Notification from './components/Notification';
 import './App.css';
