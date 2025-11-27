@@ -156,3 +156,67 @@
 .pm-success-amount strong {
   font-weight: 600;
 }
+
+/* --- Invoice preview extra styles  --- */
+
+.pm-invoice-preview {
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f7f4ff;
+  border: 1px solid #e0daf8;
+  font-size: 0.9rem;
+  text-align: left;
+}
+
+.pm-invoice-preview h4 {
+  margin: 0 0 8px 0;
+  font-size: 1rem;
+  color: #4b378c;
+}
+
+.pm-invoice-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.pm-invoice-row span {
+  font-size: 0.9rem;
+}
+
+.pm-invoice-total {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid #ddd;
+  font-weight: 600;
+}
+
+.pm-download-btn {
+  margin-top: 12px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  background: #4b378c;
+  color: #fff;
+  font-size: 0.9rem;
+}
+
+.pm-download-btn:hover {
+  opacity: 0.9;
+}
+
+/* 🔮 THEME OVERRIDES –  */
+
+.pm-primary {
+  /*rengi override ediyoruz */
+  background: #4b378c; /* PatiHouse moru */
+}
+
+.pm-primary:hover {
+  filter: brightness(1.05);
+  background: #5a41a3; /* biraz daha açık mor hover */
+}
