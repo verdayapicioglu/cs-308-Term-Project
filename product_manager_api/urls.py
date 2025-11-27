@@ -21,13 +21,15 @@ urlpatterns = [
     path('stock/<int:product_id>/', views.stock_update, name='stock_update'),
     
     # Order/Delivery Management
-    path('orders/', views.order_list, name='order_list'),
-    path('orders/<str:delivery_id>/', views.order_detail, name='order_detail'),
+    # Note: More specific paths must come before less specific ones
+    path('orders/history/', views.user_order_history, name='user_order_history'),
+    path('orders/create/', views.create_order, name='create_order'),
     path('orders/<str:delivery_id>/status/', views.order_update_status, name='order_update_status'),
+    path('orders/<str:delivery_id>/', views.order_detail, name='order_detail'),
+    path('orders/', views.order_list, name='order_list'),
     
     # Comment Approval
     path('comments/', views.comment_list, name='comment_list'),
+    path('comments/create/', views.review_create, name='review_create'),
     path('comments/<int:comment_id>/approve/', views.comment_approve, name='comment_approve'),
 ]
-
-

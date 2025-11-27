@@ -297,6 +297,29 @@
   color: #452a74;
 }
 
+.view-all-orders-button {
+  background: linear-gradient(135deg, #5c0f4e, #b86bb3);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 2px 8px rgba(92, 15, 78, 0.2);
+  white-space: nowrap;
+}
+
+.view-all-orders-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(92, 15, 78, 0.3);
+}
+
+.view-all-orders-button:active {
+  transform: translateY(0);
+}
+
 .order-products {
   list-style: none;
   padding: 0;

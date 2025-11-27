@@ -6,6 +6,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny  # TODO: Add proper authentication
 from rest_framework.response import Response
 from rest_framework import status
+from django.utils import timezone
 import json
 
 # Mock data - Will be replaced with database in future sprints
@@ -332,54 +333,187 @@ def order_update_status(request, delivery_id):
     )
 
 # Comment Approval
+# Import Review and Order models
+try:
+    from .models import Review, Order
+    USE_DATABASE = True
+except ImportError:
+    USE_DATABASE = False
+    Review = None
+    Order = None
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def review_create(request):
+    """Create a new review/comment"""
+    if not USE_DATABASE or not Review:
+        # Fallback to mock data
+        new_review = {
+            'id': len(MOCK_COMMENTS) + 1,
+            **request.data,
+            'status': 'pending',
+            'submitted_date': timezone.now().strftime('%Y-%m-%d')
+        }
+        MOCK_COMMENTS.append(new_review)
+        return Response(new_review, status=status.HTTP_201_CREATED)
+    
+    try:
+        review = Review.objects.create(
+            product_id=request.data.get('product_id') or request.data.get('productId'),
+            product_name=request.data.get('product_name') or request.data.get('productName', ''),
+            user_id=str(request.data.get('user_id') or request.data.get('userId', '')),
+            user_name=request.data.get('user_name') or request.data.get('userName', ''),
+            user_email=request.data.get('user_email') or request.data.get('userEmail', ''),
+            rating=request.data.get('rating', 5),
+            comment=request.data.get('comment', ''),
+            status='pending'
+        )
+        
+        return Response({
+            'id': review.id,
+            'product_id': review.product_id,
+            'product_name': review.product_name,
+            'user_id': review.user_id,
+            'user_name': review.user_name,
+            'user_email': review.user_email,
+            'rating': review.rating,
+            'comment': review.comment,
+            'status': review.status,
+            'created_at': review.created_at.isoformat(),
+        }, status=status.HTTP_201_CREATED)
+    except Exception as e:
+        return Response(
+            {'error': f'Error creating review: {str(e)}'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def comment_list(request):
     """Get all comments (pending and approved)"""
     status_filter = request.query_params.get('status')
     
-    comments = MOCK_COMMENTS.copy()
-    if status_filter:
-        comments = [c for c in comments if c['status'] == status_filter]
+    if USE_DATABASE and Review:
+        reviews_query = Review.objects.all()
+        if status_filter:
+            reviews_query = reviews_query.filter(status=status_filter)
+        
+        comments = [{
+            'id': r.id,
+            'product_id': r.product_id,
+            'product_name': r.product_name,
+            'productName': r.product_name,
+            'user_id': r.user_id,
+            'user_name': r.user_name,
+            'userName': r.user_name,
+            'user_email': r.user_email,
+            'userEmail': r.user_email,
+            'rating': r.rating,
+            'comment': r.comment,
+            'status': r.status,
+            'date': r.created_at.isoformat(),
+            'created_at': r.created_at.isoformat(),
+        } for r in reviews_query]
+        
+        pending_count = Review.objects.filter(status='pending').count()
+    else:
+        # Fallback to mock data
+        comments = MOCK_COMMENTS.copy()
+        if status_filter:
+            comments = [c for c in comments if c['status'] == status_filter]
+        pending_count = len([c for c in MOCK_COMMENTS if c['status'] == 'pending'])
     
     return Response({
         'comments': comments,
         'count': len(comments),
-        'pending_count': len([c for c in MOCK_COMMENTS if c['status'] == 'pending'])
+        'pending_count': pending_count
     }, status=status.HTTP_200_OK)
 
 @api_view(['PUT'])
 @permission_classes([AllowAny])
 def comment_approve(request, comment_id):
-    """Approve a comment"""
-    comment = next((c for c in MOCK_COMMENTS if c['id'] == comment_id), None)
-    
-    if not comment:
+    """Approve or reject a comment"""
+    if USE_DATABASE and Review:
+        try:
+            review = Review.objects.get(id=comment_id)
+        except Review.DoesNotExist:
+            return Response(
+                {'error': 'Comment not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        action = request.data.get('action')
+        
+        if action == 'approve':
+            review.status = 'approved'
+            review.save()
+            return Response({
+                'message': 'Comment approved',
+                'comment': {
+                    'id': review.id,
+                    'product_id': review.product_id,
+                    'product_name': review.product_name,
+                    'user_name': review.user_name,
+                    'user_email': review.user_email,
+                    'rating': review.rating,
+                    'comment': review.comment,
+                    'status': review.status,
+                    'created_at': review.created_at.isoformat(),
+                }
+            }, status=status.HTTP_200_OK)
+        
+        elif action == 'reject':
+            review.status = 'rejected'
+            review.save()
+            return Response({
+                'message': 'Comment rejected',
+                'comment': {
+                    'id': review.id,
+                    'product_id': review.product_id,
+                    'product_name': review.product_name,
+                    'user_name': review.user_name,
+                    'user_email': review.user_email,
+                    'rating': review.rating,
+                    'comment': review.comment,
+                    'status': review.status,
+                    'created_at': review.created_at.isoformat(),
+                }
+            }, status=status.HTTP_200_OK)
+        
         return Response(
-            {'error': 'Comment not found'},
-            status=status.HTTP_404_NOT_FOUND
+            {'error': 'Invalid action. Use "approve" or "reject"'},
+            status=status.HTTP_400_BAD_REQUEST
         )
-    
-    action = request.data.get('action')  # 'approve' or 'reject'
-    
-    if action == 'approve':
-        comment['status'] = 'approved'
-        return Response({
-            'message': 'Comment approved',
-            'comment': comment
-        }, status=status.HTTP_200_OK)
-    
-    elif action == 'reject':
-        comment['status'] = 'rejected'
-        return Response({
-            'message': 'Comment rejected',
-            'comment': comment
-        }, status=status.HTTP_200_OK)
-    
-    return Response(
-        {'error': 'Invalid action. Use "approve" or "reject"'},
-        status=status.HTTP_400_BAD_REQUEST
-    )
+    else:
+        # Fallback to mock data
+        comment = next((c for c in MOCK_COMMENTS if c['id'] == comment_id), None)
+        
+        if not comment:
+            return Response(
+                {'error': 'Comment not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        action = request.data.get('action')
+        
+        if action == 'approve':
+            comment['status'] = 'approved'
+            return Response({
+                'message': 'Comment approved',
+                'comment': comment
+            }, status=status.HTTP_200_OK)
+        
+        elif action == 'reject':
+            comment['status'] = 'rejected'
+            return Response({
+                'message': 'Comment rejected',
+                'comment': comment
+            }, status=status.HTTP_200_OK)
+        
+        return Response(
+            {'error': 'Invalid action. Use "approve" or "reject"'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
 # Dashboard Stats
 @api_view(['GET'])
@@ -394,8 +528,164 @@ def dashboard_stats(request):
         'processing_orders': len([o for o in MOCK_ORDERS if o['status'] == 'processing']),
         'in_transit_orders': len([o for o in MOCK_ORDERS if o['status'] == 'in-transit']),
         'delivered_orders': len([o for o in MOCK_ORDERS if o['status'] == 'delivered']),
-        'pending_comments': len([c for c in MOCK_COMMENTS if c['status'] == 'pending']),
+        'pending_comments': Review.objects.filter(status='pending').count() if (USE_DATABASE and Review) else len([c for c in MOCK_COMMENTS if c['status'] == 'pending']),
         'total_categories': len(MOCK_CATEGORIES)
     }, status=status.HTTP_200_OK)
 
+# =============================
+# Create Order (Frontend Checkout)
+# =============================
+from api.views import send_invoice_email
+from datetime import datetime, date
+import uuid
 
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def create_order(request):
+    """Create a new order from checkout"""
+    data = request.data
+
+    required_fields = ["customer_name", "customer_email", "product_name", 
+                       "quantity", "total_price", "delivery_address"]
+
+    # missing field check
+    for field in required_fields:
+        if field not in data:
+            return Response(
+                {"error": f"Missing field: {field}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    # Create delivery/order id
+    delivery_id = f"DEL-{uuid.uuid4().hex[:6].upper()}"
+    customer_id = f"CUST-{uuid.uuid4().hex[:6].upper()}"
+    order_date = date.today()
+
+    # Try to save to database first
+    if USE_DATABASE and Order:
+        try:
+            order = Order.objects.create(
+                delivery_id=delivery_id,
+                customer_id=customer_id,
+                customer_name=data["customer_name"],
+                customer_email=data["customer_email"],
+                product_id=data.get("product_id", 0),
+                product_name=data["product_name"],
+                quantity=data["quantity"],
+                total_price=data["total_price"],
+                delivery_address=data["delivery_address"],
+                status="processing",
+                order_date=order_date,
+                delivery_date=None
+            )
+            
+            # Convert to dict for response
+            new_order = {
+                "delivery_id": order.delivery_id,
+                "customer_id": order.customer_id,
+                "customer_name": order.customer_name,
+                "customer_email": order.customer_email,
+                "product_id": order.product_id,
+                "product_name": order.product_name,
+                "quantity": order.quantity,
+                "total_price": float(order.total_price),
+                "delivery_address": order.delivery_address,
+                "status": order.status,
+                "order_date": order.order_date.strftime("%Y-%m-%d") if order.order_date else None,
+                "delivery_date": order.delivery_date.strftime("%Y-%m-%d") if order.delivery_date else None,
+            }
+            
+            # Send email invoice
+            try:
+                send_invoice_email(new_order)
+            except Exception as e:
+                print("Email error:", e)
+            
+            return Response(
+                {"message": "Order created successfully", "order": new_order},
+                status=status.HTTP_201_CREATED
+            )
+        except Exception as e:
+            print(f"Database error creating order: {e}")
+            # Fall through to mock data
+    
+    # Fallback to mock data
+    new_order = {
+        "delivery_id": delivery_id,
+        "customer_id": customer_id,
+        "customer_name": data["customer_name"],
+        "customer_email": data["customer_email"],
+        "product_id": data.get("product_id", None),
+        "product_name": data["product_name"],
+        "quantity": data["quantity"],
+        "total_price": data["total_price"],
+        "delivery_address": data["delivery_address"],
+        "status": "processing",
+        "order_date": order_date.strftime("%Y-%m-%d"),
+        "delivery_date": None
+    }
+
+    # Add order to mock DB
+    MOCK_ORDERS.append(new_order)
+
+    # Send email invoice
+    try:
+        send_invoice_email(new_order)
+    except Exception as e:
+        print("Email error:", e)
+
+    return Response(
+        {"message": "Order created successfully", "order": new_order},
+        status=status.HTTP_201_CREATED
+    )
+
+# =============================
+# Order History (User Orders)
+# =============================
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def user_order_history(request):
+    """Get order history for the current user by email"""
+    user_email = request.query_params.get('email')
+    
+    if not user_email:
+        return Response(
+            {"error": "Email parameter is required"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Try to get orders from database first
+    if USE_DATABASE and Order:
+        try:
+            orders = Order.objects.filter(customer_email=user_email).order_by('-order_date', '-created_at')
+            orders_data = [{
+                'delivery_id': order.delivery_id,
+                'customer_id': order.customer_id,
+                'customer_name': order.customer_name,
+                'customer_email': order.customer_email,
+                'product_id': order.product_id,
+                'product_name': order.product_name,
+                'quantity': order.quantity,
+                'total_price': float(order.total_price),
+                'delivery_address': order.delivery_address,
+                'status': order.status,
+                'order_date': order.order_date.strftime('%Y-%m-%d') if order.order_date else None,
+                'delivery_date': order.delivery_date.strftime('%Y-%m-%d') if order.delivery_date else None,
+                'created_at': order.created_at.isoformat() if order.created_at else None,
+            } for order in orders]
+            
+            return Response({
+                'orders': orders_data,
+                'count': len(orders_data)
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            print(f"Database error: {e}")
+            # Fall through to mock data
+    
+    # Fallback to mock data
+    user_orders = [o for o in MOCK_ORDERS if o.get('customer_email', '').lower() == user_email.lower()]
+    
+    return Response({
+        'orders': user_orders,
+        'count': len(user_orders)
+    }, status=status.HTTP_200_OK)

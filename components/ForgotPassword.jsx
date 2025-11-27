@@ -1,44 +1,26 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import './ForgotPassword.css';
-import { getMockUsers, saveMockUsers } from './authUtils';
-
-const createResetToken = () => Math.random().toString(36).substring(2, 10);
-
-const getResetRequests = () => {
-  const stored = localStorage.getItem('mock_password_resets');
-  if (!stored) {
-    return [];
-  }
-  try {
-    return JSON.parse(stored);
-  } catch (error) {
-    console.warn('Corrupted password reset store. Clearing...', error);
-    localStorage.removeItem('mock_password_resets');
-    return [];
-  }
-};
-
-const saveResetRequests = (requests) => {
-  localStorage.setItem('mock_password_resets', JSON.stringify(requests));
-};
+import { authAPI } from './api';
 
 function ForgotPassword() {
   const navigate = useNavigate();
   const location = useLocation();
   const presetEmail = useMemo(
     () => location.state?.email?.toLowerCase() ?? '',
-    [location.state]
+    [location.state],
   );
 
   const [email, setEmail] = useState(presetEmail);
+  const [uid, setUid] = useState('');
   const [token, setToken] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
-  const [mode, setMode] = useState(presetEmail ? 'reset' : 'request');
+  const [step, setStep] = useState(presetEmail ? 'reset' : 'request');
   const [processing, setProcessing] = useState(false);
+  const [devResetLink, setDevResetLink] = useState('');
 
   useEffect(() => {
     if (presetEmail) {
@@ -46,10 +28,23 @@ function ForgotPassword() {
     }
   }, [presetEmail]);
 
-  const handleRequestLink = (event) => {
+  const parseResetLink = (link) => {
+    try {
+      const url = new URL(link);
+      const uidParam = url.searchParams.get('uid');
+      const tokenParam = url.searchParams.get('token');
+      if (uidParam) setUid(uidParam);
+      if (tokenParam) setToken(tokenParam);
+    } catch (parseError) {
+      console.warn('Failed to parse reset link:', parseError);
+    }
+  };
+
+  const handleRequestLink = async (event) => {
     event.preventDefault();
     setError('');
     setInfo('');
+    setDevResetLink('');
 
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail) {
@@ -57,127 +52,78 @@ function ForgotPassword() {
       return;
     }
 
+    setProcessing(true);
     try {
-      const users = getMockUsers();
-      const user = users.find((u) => u.email === normalizedEmail);
+      const response = await authAPI.requestPasswordReset(normalizedEmail);
+      const message =
+        response.data?.message ||
+        'If that email exists, a reset link has been sent.';
+      setInfo(message);
 
-      if (!user) {
-        setError('We couldn’t find an account with that email.');
-        return;
+      if (response.data?.reset_link) {
+        setDevResetLink(response.data.reset_link);
+        parseResetLink(response.data.reset_link);
+        setStep('reset');
       }
-
-      const activeRequests = getResetRequests().filter(
-        (request) => request.email !== user.email
-      );
-      const resetToken = createResetToken();
-      const record = {
-        id: Date.now().toString(),
-        email: user.email,
-        token: resetToken,
-        requestedAt: new Date().toISOString(),
-      };
-
-      saveResetRequests([...activeRequests, record]);
-      console.info(
-        'Password reset link (demo):',
-        `https://petstore.example/reset-password?token=${resetToken}`
-      );
-      setInfo(
-        `Reset link generated! Use the token sent to ${user.email}. (Check the browser console in this demo.)`
-      );
-      setToken(resetToken);
-      setMode('reset');
     } catch (err) {
-      console.error('Reset link request failed:', err);
-      setError('Unable to generate a reset link. Please try again.');
+      const apiMessage =
+        err.response?.data?.error ||
+        err.response?.data?.detail ||
+        err.message ||
+        'Unable to request password reset.';
+      setError(apiMessage);
+    } finally {
+      setProcessing(false);
     }
   };
 
-  const handleResetPassword = (event) => {
+  const handleResetPassword = async (event) => {
     event.preventDefault();
     setError('');
     setInfo('');
-    setProcessing(true);
+    setDevResetLink('');
 
-    const normalizedEmail = email.trim().toLowerCase();
-
-    if (!normalizedEmail) {
-      setError('Email is required.');
-      setProcessing(false);
+    if (!uid.trim() || !token.trim()) {
+      setError('Please enter the UID and token from the reset link.');
       return;
     }
 
-    if (!token.trim()) {
-      setError('Please enter the reset token.');
-      setProcessing(false);
-      return;
-    }
-
-    if (!newPassword) {
-      setError('Please enter a new password.');
-      setProcessing(false);
-      return;
-    }
-
-    if (newPassword.length < 6) {
-      setError('Password must be at least 6 characters long.');
-      setProcessing(false);
+    if (!newPassword || newPassword.length < 8) {
+      setError('Password must be at least 8 characters.');
       return;
     }
 
     if (newPassword !== confirmPassword) {
       setError('Passwords do not match.');
-      setProcessing(false);
       return;
     }
 
+    setProcessing(true);
     try {
-      const requests = getResetRequests();
-      const matchingRequest = requests.find(
-        (request) =>
-          request.email === normalizedEmail &&
-          request.token === token.trim()
-      );
+      await authAPI.confirmPasswordReset({
+        uid: uid.trim(),
+        token: token.trim(),
+        new_password: newPassword,
+        new_password2: confirmPassword,
+      });
 
-      if (!matchingRequest) {
-        setError('Invalid or expired reset token.');
-        setProcessing(false);
-        return;
-      }
-
-      const users = getMockUsers();
-      const userIndex = users.findIndex((u) => u.email === normalizedEmail);
-
-      if (userIndex === -1) {
-        setError('We couldn’t find an account with that email.');
-        setProcessing(false);
-        return;
-      }
-
-      const updatedUsers = [...users];
-      updatedUsers[userIndex] = {
-        ...updatedUsers[userIndex],
-        password: newPassword,
-      };
-      saveMockUsers(updatedUsers);
-
-      const remainingRequests = requests.filter(
-        (request) => request.id !== matchingRequest.id
-      );
-      saveResetRequests(remainingRequests);
-
-      setInfo('Password successfully updated! Redirecting to login...');
-      setMode('success');
-      setTimeout(() => navigate('/login'), 1800);
+      setStep('success');
+      setInfo('Password updated successfully! Redirecting to login...');
+      setTimeout(() => navigate('/login'), 2000);
     } catch (err) {
-      console.error('Password reset failed:', err);
-      setError('Unable to reset password. Please try again.');
+      const apiMessage =
+        err.response?.data?.error ||
+        err.response?.data?.detail ||
+        err.message ||
+        'Unable to reset password.';
+      setError(apiMessage);
+    } finally {
       setProcessing(false);
     }
   };
 
   const renderContent = () => {
-    if (mode === 'success') {
+    if (step === 'success') {
       return (
         <div className="success-state">
           <p>You can now sign in with your new password.</p>
@@ -192,7 +138,7 @@ function ForgotPassword() {
       );
     }
 
-    if (mode === 'request') {
+    if (step === 'request') {
       return (
         <form onSubmit={handleRequestLink}>
           <div className="form-group">
@@ -206,8 +152,8 @@ function ForgotPassword() {
               required
             />
           </div>
-          <button type="submit" className="primary-button">
-            Send reset link
+          <button type="submit" className="primary-button" disabled={processing}>
+            {processing ? 'Sending...' : 'Send reset link'}
           </button>
         </form>
       );
@@ -216,13 +162,13 @@ function ForgotPassword() {
     return (
       <form onSubmit={handleResetPassword}>
         <div className="form-group">
-          <label htmlFor="reset-email">Email</label>
+          <label htmlFor="uid">UID (from reset link)</label>
           <input
-            id="reset-email"
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="Enter your email address"
+            id="uid"
+            type="text"
+            value={uid}
+            onChange={(event) => setUid(event.target.value)}
+            placeholder="Paste the uid parameter"
             required
           />
         </div>
@@ -233,7 +179,7 @@ function ForgotPassword() {
             type="text"
             value={token}
             onChange={(event) => setToken(event.target.value)}
-            placeholder="Paste the token from the email/console"
+            placeholder="Paste the token parameter"
             required
           />
         </div>
@@ -245,6 +191,7 @@ function ForgotPassword() {
             value={newPassword}
             onChange={(event) => setNewPassword(event.target.value)}
             placeholder="Choose a new password"
+            minLength={8}
             required
           />
         </div>
@@ -278,15 +225,30 @@ function ForgotPassword() {
           <span className="paw-icon">🐾</span>
         </h2>
         <p className="subtitle">
-          Enter your email to receive a reset token, then use it to set a new
-          password.
+          Enter your email to receive a reset link, then use the UID & token to
+          set a new password.
         </p>
         {error && <div className="error-message">{error}</div>}
-        {info && mode !== 'success' && (
-          <div className="info-message">{info}</div>
+        {info && step !== 'success' && (
+          <div className="info-message">
+            <p>{info}</p>
+            {devResetLink && (
+              <p style={{ marginTop: '0.5rem' }}>
+                Dev link:{' '}
+                <a
+                  href={devResetLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ wordBreak: 'break-all' }}
+                >
+                  {devResetLink}
+                </a>
+              </p>
+            )}
+          </div>
         )}
         {renderContent()}
-        {mode !== 'success' && (
+        {step !== 'success' && (
           <p className="helper-text">
             Remembered your password? <Link to="/login">Back to login</Link>
           </p>

@@ -11,6 +11,7 @@ import About from './components/About.jsx';
 import Categories from './components/Categories.jsx';
 import ForgotPassword from './components/ForgotPassword.jsx';
 import Profile from './components/Profile.jsx';
+import OrderHistory from './components/OrderHistory.jsx';
 import CommentApproval from './components/ProductManager/CommentApproval.jsx';
 import { CartProvider } from './context/CartContext';
 import Notification from './components/Notification';
@@ -29,6 +30,7 @@ function App() {
             <Route path="/signup" element={<Signup />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/order-history" element={<OrderHistory />} />
             <Route path="/products" element={<Products />} />
             <Route path="/product/:id" element={<ProductDetail />} />
             <Route path="/categories" element={<Categories />} />

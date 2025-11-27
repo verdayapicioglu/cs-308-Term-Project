@@ -1,3 +1,9 @@
+# Python Cache dosyalarını görmezden gel
+__pycache__/
+*.pyc
+
+
+
 node_modules/
 .DS_Store
 *.log

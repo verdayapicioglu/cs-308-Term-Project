@@ -1,0 +1,9 @@
+<!doctype html>
+<html>
+  <head><meta charset="utf-8"><title>Home</title></head>
+  <body>
+    <h1>Welcome, {{ request.user.username }}</h1>
+    <p>You’re logged in.</p>
+    <a href="{% url 'logout' %}">Logout</a>
+  </body>
+</html>
