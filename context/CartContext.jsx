@@ -7,6 +7,17 @@ const saveToStorage = (items) => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
 };
 
+const getMaxQuantity = (product) => {
+  if (!product || product.quantity_in_stock === undefined || product.quantity_in_stock === null) {
+    return null;
+  }
+  const parsed = Number(product.quantity_in_stock);
+  if (Number.isNaN(parsed)) {
+    return null;
+  }
+  return Math.max(0, parsed);
+};
+
 const generateCartId = () => {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
     return crypto.randomUUID();
@@ -46,15 +57,43 @@ export function CartProvider({ children }) {
 
 
   const addToCart = (product) => {
+    if (!product) {
+      return;
+    }
+
+    const maxQuantity = getMaxQuantity(product);
+
     setCartItems((prev) => {
       const existing = prev.find((item) => item.id === product.id);
+
+      if (maxQuantity === 0) {
+        showNotification(`${product.name} is out of stock.`);
+        return prev;
+      }
+
       if (existing) {
+        const nextQuantity = (existing.quantity || 1) + 1;
+        if (maxQuantity !== null && nextQuantity > maxQuantity) {
+          showNotification(`Only ${maxQuantity} unit(s) of ${product.name} available.`);
+          return prev;
+        }
+
+        showNotification(`${product.name} quantity updated.`);
         return prev.map((item) =>
           item.id === product.id
-            ? { ...item, quantity: (item.quantity || 1) + 1 }
+            ? {
+                ...item,
+                quantity: nextQuantity,
+                maxQuantity:
+                  item.maxQuantity !== undefined && item.maxQuantity !== null
+                    ? item.maxQuantity
+                    : maxQuantity,
+              }
             : item,
         );
       }
+
+      showNotification(`${product.name} is added to your cart.`);
       return [
         ...prev,
         {
@@ -64,10 +103,10 @@ export function CartProvider({ children }) {
           quantity: 1,
           image_url: product.image_url,
           description: product.description,
+          maxQuantity,
         },
       ];
     });
-    showNotification(`${product.name} is added to your cart.`);
   };
 
   const removeFromCart = (productId) => {
@@ -83,15 +122,30 @@ export function CartProvider({ children }) {
   const updateQuantity = (productId, newQuantity) => {
     if (newQuantity <= 0) {
       removeFromCart(productId); 
-    } else {
-      setCartItems((prev) =>
-        prev.map((item) =>
-          item.id === productId ? { ...item, quantity: newQuantity } : item
-        )
-      );
+      return;
+    }
+
+    setCartItems((prev) => {
+      const item = prev.find((entry) => entry.id === productId);
+      if (!item) {
+        return prev;
+      }
+
+      const { maxQuantity } = item;
+      if (maxQuantity !== null && maxQuantity !== undefined && newQuantity > maxQuantity) {
+        showNotification(`Only ${maxQuantity} unit(s) of ${item.name} available.`);
+        return prev;
+      }
+
+      if (item.quantity === newQuantity) {
+        return prev;
+      }
 
       showNotification("Cart quantity updated.");
-    }
+      return prev.map((entry) =>
+        entry.id === productId ? { ...entry, quantity: newQuantity } : entry
+      );
+    });
   };
 
   const clearCart = () => {

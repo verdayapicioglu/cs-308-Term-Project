@@ -175,6 +175,13 @@
   background-color: #5568d3;
 }
 
+.quantity-btn:disabled {
+  background-color: #d3d3d3;
+  color: #777;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 .quantity {
   font-size: 1.1rem;
   font-weight: bold;
@@ -203,6 +210,12 @@
   color: #667eea;
   font-weight: bold;
   text-align: right;
+}
+
+.stock-limit-note {
+  font-size: 0.85rem;
+  color: #d9534f;
+  text-align: center;
 }
 
 /* Sepet Özeti */

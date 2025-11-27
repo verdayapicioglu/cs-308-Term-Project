@@ -105,8 +105,16 @@ export default function Cart() {
       ) : (
         <div className="cart-content">
           <div className="cart-items">
-            {cartItems.map((item) => (
-              <div key={item.id} className="cart-item">
+            {cartItems.map((item) => {
+              const quantity = item.quantity || 1;
+              const maxQuantity = item.maxQuantity;
+              const reachedStockLimit =
+                typeof maxQuantity === "number" &&
+                maxQuantity > 0 &&
+                quantity >= maxQuantity;
+
+              return (
+                <div key={item.id} className="cart-item">
                 <div className="cart-item-image">
                   <img
                     src={
@@ -130,22 +138,33 @@ export default function Cart() {
                   <div className="quantity-controls">
                     <button
                       onClick={() =>
-                        updateQuantity(item.id, (item.quantity || 1) - 1)
+                        updateQuantity(item.id, quantity - 1)
                       }
                       className="quantity-btn"
                     >
                       -
                     </button>
-                    <span className="quantity">{item.quantity || 1}</span>
+                    <span className="quantity">{quantity}</span>
                     <button
                       onClick={() =>
-                        updateQuantity(item.id, (item.quantity || 1) + 1)
+                        updateQuantity(item.id, quantity + 1)
                       }
                       className="quantity-btn"
+                      disabled={reachedStockLimit}
+                      title={
+                        reachedStockLimit
+                          ? "You already have the maximum available stock for this item"
+                          : "Increase quantity"
+                      }
                     >
                       +
                     </button>
                   </div>
+                  {reachedStockLimit && (
+                    <span className="stock-limit-note">
+                      Maximum available stock added
+                    </span>
+                  )}
                   <button
                     onClick={() => removeFromCart(item.id)}
                     className="remove-btn"
@@ -155,11 +174,12 @@ export default function Cart() {
                 </div>
                 <div className="cart-item-total">
                   <strong>
-                    ₺{((item.price || 0) * (item.quantity || 1)).toFixed(2)}
+                    ₺{((item.price || 0) * quantity).toFixed(2)}
                   </strong>
                 </div>
-              </div>
-            ))}
+                </div>
+              );
+            })}
           </div>
 
           <div className="cart-summary">
