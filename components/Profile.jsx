@@ -431,7 +431,17 @@ function Profile() {
             </Link>
           </header>
           <div className="order-list">
-            {profile.recentOrders.map((order) => (
+
+          {ordersLoading ? (
+            <div style={{ padding: '1rem', textAlign: 'center' }}>
+              Loading orders...
+            </div>
+          ) : recentOrders.length === 0 ? (
+            <div style={{ padding: '1rem', textAlign: 'center', color: '#666' }}>
+              No recent orders found.
+            </div>
+          ) : (
+            recentOrders.map((order) => (
               <div key={order.id} className="order-item">
                 <div className="order-meta">
                   <span className="order-id">{order.id}</span>
@@ -439,13 +449,16 @@ function Profile() {
                     {order.status}
                   </span>
                 </div>
+
                 <p className="order-date">{formatDate(order.date)}</p>
+
                 <p className="order-total">
                   {order.total.toLocaleString('tr-TR', {
                     style: 'currency',
                     currency: order.currency,
                   })}
                 </p>
+
                 <ul className="order-products">
                   {order.items.map((item, index) => (
                     <li key={`${order.id}-${index}`}>
@@ -454,6 +467,7 @@ function Profile() {
                     </li>
                   ))}
                 </ul>
+
                 <div className="order-actions">
                   <button 
                     type="button" 
@@ -465,55 +479,15 @@ function Profile() {
                   <button 
                     type="button" 
                     className="ghost-button"
-                    onClick={() => {
-                      // Navigate to products page for "Buy again"
-                      navigate('/products');
-                    }}
+                    onClick={() => navigate('/products')}
                   >
                     Buy again
                   </button>
                 </div>
               </div>
-            ) : recentOrders.length === 0 ? (
-              <div style={{ padding: '1rem', textAlign: 'center', color: '#666' }}>
-                No recent orders found.
-              </div>
-            ) : (
-              recentOrders.map((order) => (
-                <div key={order.id} className="order-item">
-                  <div className="order-meta">
-                    <span className="order-id">{order.id}</span>
-                    <span className={`status-chip status-${order.status.toLowerCase().replace(/\s+/g, '-')}`}>
-                      {order.status}
-                    </span>
-                  </div>
-                  <p className="order-date">{formatDate(order.date)}</p>
-                  <p className="order-total">
-                    {order.total.toLocaleString('tr-TR', {
-                      style: 'currency',
-                      currency: order.currency,
-                    })}
-                  </p>
-                  <ul className="order-products">
-                    {order.items.map((item, index) => (
-                      <li key={`${order.id}-${index}`}>
-                        {item.name}
-                        <span className="quantity">×{item.quantity}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="order-actions">
-                    <button type="button" className="primary-link">
-                      View order
-                    </button>
-                    <button type="button" className="ghost-button">
-                      Buy again
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+            ))
+          )}
+        </div>
         </article>
 
         <article className="profile-card preferences-card">

@@ -35,13 +35,6 @@ function Cart() {
       calculateTotal(items);
     } else {
       // Example cart data (fallback)
-      const mockCart = [
-        { id: 1, name: 'Dog Food', price: 150, quantity: 2, image: '🐕' },
-        { id: 2, name: 'Cat Litter', price: 80, quantity: 1, image: '🐱' },
-      ];
-      setCartItems(mockCart);
-      localStorage.setItem('cart_items', JSON.stringify(mockCart));
-      calculateTotal(mockCart);
     }
   }, [isAuthenticated, navigate]);
 
