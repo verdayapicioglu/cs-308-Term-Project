@@ -28,6 +28,7 @@ urlpatterns = [
     
     # Comment Approval
     path('comments/', views.comment_list, name='comment_list'),
+    path('comments/create/', views.review_create, name='review_create'),
     path('comments/<int:comment_id>/approve/', views.comment_approve, name='comment_approve'),
 ]
 

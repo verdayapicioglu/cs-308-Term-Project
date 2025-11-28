@@ -18,6 +18,7 @@ import OrderConfirmation from "./OrderConfirmation";
 import DeliveryDashboard from "./components/DeliveryDepartment/DeliveryDashboard";
 import OrderHistory from "./components/OrderHistory";
 import OrderManagement from "./components/ProductManager/OrderManagement.jsx";
+import CommentApproval from "./components/ProductManager/CommentApproval.jsx";
 
 
 function App() {
@@ -42,6 +43,7 @@ function App() {
             <Route path="/order-history" element={<OrderHistory />} />
             <Route path="/delivery/dashboard" element={<DeliveryDashboard />} />
             <Route path="/delivery/orders" element={<OrderManagement />} />
+            <Route path="/product-manager/comments" element={<CommentApproval />} />
           </Routes>
         </div>
       </Router>

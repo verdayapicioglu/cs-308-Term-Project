@@ -277,10 +277,19 @@ async function productManagerRequest(endpoint, options = {}) {
 
   try {
     const response = await fetch(url, config);
-    const data = await response.json();
+    
+    // Try to parse JSON, but handle cases where response might not be JSON
+    let data;
+    try {
+      const text = await response.text();
+      data = text ? JSON.parse(text) : {};
+    } catch (parseError) {
+      // If JSON parsing fails, create a basic error response
+      data = { error: 'Invalid response from server' };
+    }
 
     if (!response.ok) {
-      const error = new Error(data.error || data.message || 'An error occurred');
+      const error = new Error(data.error || data.message || data.detail || `Server error: ${response.status}`);
       error.response = { data, status: response.status };
       throw error;
     }
@@ -291,6 +300,7 @@ async function productManagerRequest(endpoint, options = {}) {
       throw error;
     }
     console.error('Product Manager API Request Error:', error);
+    console.error('URL:', url);
     throw error;
   }
 }
