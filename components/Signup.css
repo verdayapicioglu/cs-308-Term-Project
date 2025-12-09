@@ -71,6 +71,12 @@
   margin-bottom: 20px;
 }
 
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
 .form-group label {
   display: block;
   margin-bottom: 8px;
@@ -132,6 +138,15 @@
   border-radius: 5px;
   margin-bottom: 20px;
   border: 1px solid #f5c6cb;
+}
+
+.info-message {
+  background-color: #e6f4ff;
+  color: #0b5394;
+  padding: 12px;
+  border-radius: 5px;
+  margin-bottom: 20px;
+  border: 1px solid #b3d7ff;
 }
 
 .login-link {

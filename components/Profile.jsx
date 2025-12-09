@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import './Profile.css';
 import { getMockUsers, saveMockUsers } from './authUtils';
 import { authAPI, productManagerAPI } from './api';

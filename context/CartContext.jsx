@@ -56,57 +56,69 @@ export function CartProvider({ children }) {
   };
 
 
+  // CartContext.jsx içindeki addToCart fonksiyonunu bununla değiştirin:
+
   const addToCart = (product) => {
-    if (!product) {
-      return;
+    if (!product) return;
+
+    // 1. ÖNEMLİ: React State'ine (prev) güvenmek yerine,
+    // o an diskte (localStorage) ne kayıtlıysa onu çekiyoruz.
+    // Bu sayede Sepet sayfasında sildiğiniz ürünler gerçekten silinmiş olarak gelir.
+    let currentItems = [];
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      currentItems = stored ? JSON.parse(stored) : [];
+    } catch (e) {
+      currentItems = [];
     }
 
     const maxQuantity = getMaxQuantity(product);
+    
+    // 2. Şimdi bu GÜNCEL liste üzerinde işlem yapıyoruz
+    const existingIndex = currentItems.findIndex((item) => item.id === product.id);
 
-    setCartItems((prev) => {
-      const existing = prev.find((item) => item.id === product.id);
+    if (maxQuantity === 0) {
+      showNotification(`${product.name} is out of stock.`);
+      return;
+    }
 
-      if (maxQuantity === 0) {
-        showNotification(`${product.name} is out of stock.`);
-        return prev;
+    if (existingIndex > -1) {
+      // Ürün zaten varsa miktarını artır
+      const existingItem = currentItems[existingIndex];
+      const nextQuantity = (existingItem.quantity || 1) + 1;
+
+      if (maxQuantity !== null && nextQuantity > maxQuantity) {
+        showNotification(`Only ${maxQuantity} unit(s) of ${product.name} available.`);
+        return;
       }
 
-      if (existing) {
-        const nextQuantity = (existing.quantity || 1) + 1;
-        if (maxQuantity !== null && nextQuantity > maxQuantity) {
-          showNotification(`Only ${maxQuantity} unit(s) of ${product.name} available.`);
-          return prev;
-        }
-
-        showNotification(`${product.name} quantity updated.`);
-        return prev.map((item) =>
-          item.id === product.id
-            ? {
-                ...item,
-                quantity: nextQuantity,
-                maxQuantity:
-                  item.maxQuantity !== undefined && item.maxQuantity !== null
-                    ? item.maxQuantity
-                    : maxQuantity,
-              }
-            : item,
-        );
-      }
-
+      // Dizideki o elemanı güncelle
+      currentItems[existingIndex] = {
+        ...existingItem,
+        quantity: nextQuantity,
+        maxQuantity: existingItem.maxQuantity ?? maxQuantity
+      };
+      
+      showNotification(`${product.name} quantity updated.`);
+    } else {
+      // Ürün yoksa listeye yeni ekle
+      currentItems.push({
+        id: product.id ?? generateCartId(),
+        name: product.name,
+        price: product.price ?? 0,
+        quantity: 1,
+        image_url: product.image_url,
+        description: product.description,
+        maxQuantity,
+      });
+      
       showNotification(`${product.name} is added to your cart.`);
-      return [
-        ...prev,
-        {
-          id: product.id ?? generateCartId(),
-          name: product.name,
-          price: product.price ?? 0,
-          quantity: 1,
-          image_url: product.image_url,
-          description: product.description,
-          maxQuantity,
-        },
-      ];
-    });
+    }
+
+    // 3. Son olarak hem State'i hem de LocalStorage'ı güncelliyoruz
+    // (State güncellemesi UI'ın anlık değişmesini sağlar)
+    setCartItems(currentItems);
+    saveToStorage(currentItems);
   };
 
   const removeFromCart = (productId) => {

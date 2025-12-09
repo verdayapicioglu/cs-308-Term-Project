@@ -1,5 +1,5 @@
 from django.db import models
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
 
 class Product(models.Model):
@@ -65,4 +65,42 @@ class Order(models.Model):
             if not self.delivery_date:
                 self.delivery_date = timezone.now().date()
             self.save()
+
+
+class Review(models.Model):
+    """Product reviews/comments that require approval"""
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+    
+    product_id = models.IntegerField(db_index=True)
+    product_name = models.CharField(max_length=200)
+    user_id = models.CharField(max_length=50, db_index=True)
+    user_name = models.CharField(max_length=200)
+    user_email = models.EmailField()
+    rating = models.IntegerField(
+        help_text='Rating from 1 to 5',
+        validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
+    comment = models.TextField()
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending',
+        db_index=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['product_id', 'status']),
+            models.Index(fields=['user_id', 'product_id']),
+        ]
+    
+    def __str__(self):
+        return f"Review for {self.product_name} by {self.user_name} ({self.status})"
 

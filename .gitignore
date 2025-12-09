@@ -1,10 +1,13 @@
-node_modules/
-.DS_Store
-*.log
-.env
-.vscode/
-.idea/
-dist/
-build/
-coverage/
+# Django database
+db.sqlite3
+db 2.sqlite3
 
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Node modules
+node_modules/
+
+# Duplicate backup files
+* 2.py
