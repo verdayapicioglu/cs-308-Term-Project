@@ -20,6 +20,9 @@ import OrderConfirmation from "./OrderConfirmation";
 import DeliveryDashboard from "./components/DeliveryDepartment/DeliveryDashboard";
 import OrderManagement from "./components/ProductManager/OrderManagement.jsx";
 
+// --- YENİ EKLENEN IMPORT ---
+import ProductDetail from './components/ProductDetail'; 
+
 function App() {
   return (
     <CartProvider>
@@ -35,12 +38,16 @@ function App() {
             <Route path="/profile" element={<Profile />} />
             <Route path="/order-history" element={<OrderHistory />} />
             <Route path="/products" element={<Products />} />
+            
+            {/* --- YENİ EKLENEN ROUTE --- */}
+            {/* :id kısmı, ürünün ID'sinin (örneğin 2) buraya geleceğini belirtir */}
+            <Route path="/product/:id" element={<ProductDetail />} />
+
             <Route path="/categories" element={<Categories />} />
             <Route path="/cart" element={<Cart />} />
             <Route path="/about" element={<About />} />
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/order-confirmation" element={<OrderConfirmation />} />
-            <Route path="/order-history" element={<OrderHistory />} />
             <Route path="/delivery/dashboard" element={<DeliveryDashboard />} />
             <Route path="/delivery/orders" element={<OrderManagement />} />
             <Route path="/product-manager/comments" element={<CommentApproval />} />
