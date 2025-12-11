@@ -17,6 +17,7 @@ from rest_framework.response import Response
 from rest_framework import status
 
 from .models import Order, OrderItem, UserProfile, Cart, CartItem
+from product_manager_api.models import Product
 from .serializers import (
     UserRegistrationSerializer,
     UserLoginSerializer,
@@ -431,6 +432,24 @@ def add_to_cart(request):
             }
         )
 
+        # Verify stock
+        try:
+            product = Product.objects.get(id=product_id)
+            current_cart_quantity = 0
+            if not created:
+                current_cart_quantity = cart_item.quantity
+            
+            total_requested = current_cart_quantity + quantity
+            if total_requested > product.quantity_in_stock:
+                 return Response({
+                    'error': f'Insufficient stock. Only {product.quantity_in_stock} items available.',
+                    'available_stock': product.quantity_in_stock
+                }, status=status.HTTP_400_BAD_REQUEST)
+        except Product.DoesNotExist:
+             return Response({
+                'error': 'Product not found during stock check'
+            }, status=status.HTTP_404_NOT_FOUND)
+
         if not created:
             # Update quantity if item already exists
             cart_item.quantity += quantity
@@ -468,6 +487,20 @@ def update_cart_item(request, item_id):
             return Response({
                 'message': 'Item removed from cart'
             }, status=status.HTTP_200_OK)
+
+        # Verify stock
+        try:
+            product = Product.objects.get(id=cart_item.product_id)
+            if new_quantity > product.quantity_in_stock:
+                return Response({
+                    'error': f'Insufficient stock. Only {product.quantity_in_stock} items available.',
+                    'available_stock': product.quantity_in_stock
+                }, status=status.HTTP_400_BAD_REQUEST)
+        except Product.DoesNotExist:
+            # If product is gone, maybe we should remove from cart? For now just fail.
+             return Response({
+                'error': 'Product no longer exists'
+            }, status=status.HTTP_404_NOT_FOUND)
 
         cart_item.quantity = new_quantity
         cart_item.save()
@@ -572,10 +605,36 @@ def merge_cart(request):
                 }
             )
 
-            if not created:
-                # Merge quantities if item already exists
-                cart_item.quantity += quantity
-                cart_item.save()
+            # Verify stock for merge
+            try:
+                product_obj = Product.objects.get(id=product_id)
+                current_qty = 0
+                if not created:
+                    current_qty = cart_item.quantity
+                
+                # If merging exceeds stock, cap it at max available? Or fail?
+                # Let's cap it at max available for better UX, or just don't add more.
+                # Here we will try to add, if fail, we just set to max stock.
+                
+                final_qty = current_qty + quantity
+                if final_qty > product_obj.quantity_in_stock:
+                    final_qty = product_obj.quantity_in_stock
+                
+                if not created:
+                    cart_item.quantity = final_qty
+                    cart_item.save()
+                else:
+                    # If it was just created with quantity, we need to check if that initial quantity was too high
+                    if cart_item.quantity > product_obj.quantity_in_stock:
+                        cart_item.quantity = product_obj.quantity_in_stock
+                        cart_item.save()
+
+            except Product.DoesNotExist:
+                continue # Skip if product missing
+
+            if not created and not Product.objects.filter(id=product_id).exists():
+                 # Should not happen due to try/except but logic wise
+                 pass
 
             merged_count += 1
 

@@ -13,6 +13,7 @@ import {
   getProductRatings,
   getAverageRating
 } from './reviewUtils';
+import { useCart } from '../context/CartContext';
 import './ProductDetail.css';
 
 function ProductDetail() {
@@ -21,6 +22,8 @@ function ProductDetail() {
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const { addToCart } = useCart();
+  const [quantity, setQuantity] = useState(1);
 
   // Review & Rating state
   const [ratingType, setRatingType] = useState('stars'); // 'stars' or 'points'
@@ -229,6 +232,24 @@ function ProductDetail() {
     }
   };
 
+  const handleAddToCart = () => {
+    if (product.quantity_in_stock > 0) {
+      addToCart(product, quantity);
+    }
+  };
+
+  const incrementQuantity = () => {
+    if (quantity < product.quantity_in_stock) {
+      setQuantity(prev => prev + 1);
+    }
+  };
+
+  const decrementQuantity = () => {
+    if (quantity > 1) {
+      setQuantity(prev => prev - 1);
+    }
+  };
+
   const renderStarRating = (value, interactive = false, onChange = null) => {
     const stars = [];
     const maxStars = 5;
@@ -361,6 +382,63 @@ function ProductDetail() {
                     {product.quantity_in_stock}
                   </span>
                 </div>
+              )}
+            </div>
+
+            <div className="product-actions" style={{ marginTop: '20px', display: 'flex', gap: '10px', alignItems: 'center' }}>
+              {product.quantity_in_stock > 0 ? (
+                <>
+                  <div className="quantity-selector" style={{ display: 'flex', alignItems: 'center', border: '1px solid #ddd', borderRadius: '4px' }}>
+                    <button
+                      onClick={decrementQuantity}
+                      style={{ padding: '5px 10px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem' }}
+                      disabled={quantity <= 1}
+                    >−</button>
+                    <input
+                      type="number"
+                      value={quantity}
+                      readOnly
+                      style={{ width: '40px', textAlign: 'center', border: 'none', fontSize: '1rem', MozAppearance: 'textfield' }}
+                    />
+                    <button
+                      onClick={incrementQuantity}
+                      style={{ padding: '5px 10px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem' }}
+                      disabled={quantity >= product.quantity_in_stock}
+                    >+</button>
+                  </div>
+                  <button
+                    className="add-to-cart-button"
+                    onClick={handleAddToCart}
+                    style={{
+                      padding: '10px 20px',
+                      backgroundColor: '#4a90e2',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontWeight: 'bold',
+                      fontSize: '1rem'
+                    }}
+                  >
+                    Add to Cart
+                  </button>
+                </>
+              ) : (
+                <button
+                  disabled
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: '#ccc',
+                    color: '#666',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'not-allowed',
+                    fontWeight: 'bold',
+                    fontSize: '1rem'
+                  }}
+                >
+                  Out of Stock
+                </button>
               )}
             </div>
           </div>

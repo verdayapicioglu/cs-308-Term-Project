@@ -1,8 +1,8 @@
 // Cart.jsx - Cart Page
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-// import { useCart } from "../context/CartContext"; // Kept if you need it, though not used in the logic below
+import { useCart } from "../context/CartContext";
 import { saveOrder } from "./reviewUtils";
 import "./Cart.css";
 import PaymentMockFlow from "./PaymentMockFlow";
@@ -13,48 +13,22 @@ function Cart() {
   const userEmail = localStorage.getItem('user_email');
   const userName = localStorage.getItem('user_name');
 
-  // Cart data (from localStorage)
-  const [cartItems, setCartItems] = useState([]);
-  const [total, setTotal] = useState(0);
+  // Use Global Cart Context
+  const { cartItems, updateQuantity, removeFromCart, clearCart } = useCart();
 
   // Payment flow state
   const [showPayment, setShowPayment] = useState(false);
   const [orderId, setOrderId] = useState(null);
 
-  useEffect(() => {
-    // NOT: Login kontrolünü kaldırdık (Ziyaretçiler de görebilsin diye)
-
-    // LocalStorage'dan sepeti çek
-    const savedCart = localStorage.getItem('cart_items');
-
-    if (savedCart) {
-      try {
-        const items = JSON.parse(savedCart);
-        // Eğer savedCart varsa onu yükle
-        setCartItems(items);
-        calculateTotal(items);
-      } catch (error) {
-        // Eğer veri bozuksa sepeti boşalt
-        console.error("Sepet verisi okunamadı:", error);
-        setCartItems([]);
-        setTotal(0);
-      }
-    } else {
-      // ELSE BLOĞU: Eğer kayıtlı sepet yoksa
-      // Burayı KESİNLİKLE boş dizi [] olarak ayarlıyoruz.
-      // Burada daha önce "mock data" (örnek ürün) kodu varsa silinmiş oldu.
-      setCartItems([]);
-      setTotal(0);
-    }
-  }, []); // Bağımlılık dizisi boş, sadece sayfa açılışında çalışır
-
+  // Calculate totals derived from context data
   const calculateTotal = (items) => {
-    const totalPrice = items.reduce(
+    return items.reduce(
       (sum, item) => sum + item.price * item.quantity,
       0
     );
-    setTotal(totalPrice);
   };
+
+  const total = calculateTotal(cartItems);
 
   const calculateTotalQuantity = () => {
     return cartItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
@@ -62,24 +36,12 @@ function Cart() {
 
   const totalQuantity = calculateTotalQuantity();
 
-  const updateQuantity = (id, newQuantity) => {
-    if (newQuantity < 1) {
-      removeItem(id);
-      return;
-    }
-    const updatedItems = cartItems.map((item) =>
-      item.id === id ? { ...item, quantity: newQuantity } : item
-    );
-    setCartItems(updatedItems);
-    localStorage.setItem('cart_items', JSON.stringify(updatedItems));
-    calculateTotal(updatedItems);
+  const handleUpdateQuantity = (id, newQuantity) => {
+    updateQuantity(id, newQuantity);
   };
 
-  const removeItem = (id) => {
-    const updatedItems = cartItems.filter((item) => item.id !== id);
-    setCartItems(updatedItems);
-    localStorage.setItem('cart_items', JSON.stringify(updatedItems));
-    calculateTotal(updatedItems);
+  const handleRemoveItem = (id) => {
+    removeFromCart(id);
   };
 
   const taxRate = 0.18;
@@ -113,7 +75,6 @@ function Cart() {
 
   const handleCheckout = () => {
     if (!isAuthenticated) {
-      // Logic Change: Redirect to login only when attempting to checkout
       navigate('/login');
     } else {
       setShowPayment(true);
@@ -146,8 +107,8 @@ function Cart() {
       console.log('Order saved:', order);
     }
 
-    setCartItems([]);
-    localStorage.removeItem('cart_items');
+    clearCart();
+    // Context handles storage cleanup via cleanCart
 
     setShowPayment(false);
     setTimeout(() => {
@@ -163,13 +124,10 @@ function Cart() {
     }
   };
 
-  // REMOVED: The render guard "if (!isAuthenticated) return null;"
-
   return (
     <div className="cart-container">
       <div className="cart-header">
         <h1>My Cart 🛒</h1>
-        {/* Updated Greeting to handle Guest */}
         <p>Hello, {userName || userEmail || 'Guest'}!</p>
       </div>
 
@@ -208,7 +166,7 @@ function Cart() {
                   <div className="quantity-controls">
                     <button
                       onClick={() =>
-                        updateQuantity(item.id, item.quantity - 1)
+                        handleUpdateQuantity(item.id, item.quantity - 1)
                       }
                       className="quantity-btn"
                     >
@@ -217,7 +175,7 @@ function Cart() {
                     <span className="quantity">{item.quantity}</span>
                     <button
                       onClick={() =>
-                        updateQuantity(item.id, item.quantity + 1)
+                        handleUpdateQuantity(item.id, item.quantity + 1)
                       }
                       className="quantity-btn"
                     >
@@ -225,7 +183,7 @@ function Cart() {
                     </button>
                   </div>
                   <button
-                    onClick={() => removeItem(item.id)}
+                    onClick={() => handleRemoveItem(item.id)}
                     className="remove-btn"
                   >
                     🗑️ Remove

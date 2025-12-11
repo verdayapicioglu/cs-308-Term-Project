@@ -36,7 +36,7 @@ const readFromStorage = () => {
 
 export function CartProvider({ children }) {
   const [cartItems, setCartItems] = useState(() => readFromStorage());
-  
+
   const [notification, setNotification] = useState("");
   const [notificationTimer, setNotificationTimer] = useState(null);
 
@@ -58,12 +58,16 @@ export function CartProvider({ children }) {
 
   // CartContext.jsx içindeki addToCart fonksiyonunu bununla değiştirin:
 
-  const addToCart = (product) => {
+  /* 
+     Update to fix stock validation issues:
+     - Ensure getMaxQuantity returns a valid number or null.
+     - Strictly enforce stock limits in addToCart and updateQuantity.
+     - Handle cases where product object might be incomplete.
+  */
+
+  const addToCart = (product, quantity = 1) => {
     if (!product) return;
 
-    // 1. ÖNEMLİ: React State'ine (prev) güvenmek yerine,
-    // o an diskte (localStorage) ne kayıtlıysa onu çekiyoruz.
-    // Bu sayede Sepet sayfasında sildiğiniz ürünler gerçekten silinmiş olarak gelir.
     let currentItems = [];
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
@@ -72,51 +76,56 @@ export function CartProvider({ children }) {
       currentItems = [];
     }
 
+    // Ensure we have a valid max quantity
     const maxQuantity = getMaxQuantity(product);
-    
-    // 2. Şimdi bu GÜNCEL liste üzerinde işlem yapıyoruz
+
+    // Find existing item
     const existingIndex = currentItems.findIndex((item) => item.id === product.id);
 
-    if (maxQuantity === 0) {
+    // If item exists, use its stored maxQuantity if available, otherwise use the new one
+    // This is important because the product object passed here might be partial
+    let effectiveMaxQty = maxQuantity;
+    if (existingIndex > -1 && (effectiveMaxQty === null || effectiveMaxQty === undefined)) {
+      effectiveMaxQty = currentItems[existingIndex].maxQuantity;
+    }
+
+    if (effectiveMaxQty === 0) {
       showNotification(`${product.name} is out of stock.`);
       return;
     }
 
     if (existingIndex > -1) {
-      // Ürün zaten varsa miktarını artır
       const existingItem = currentItems[existingIndex];
-      const nextQuantity = (existingItem.quantity || 1) + 1;
+      const currentQty = Number(existingItem.quantity) || 0;
+      const nextQuantity = currentQty + quantity;
 
-      if (maxQuantity !== null && nextQuantity > maxQuantity) {
-        showNotification(`Only ${maxQuantity} unit(s) of ${product.name} available.`);
+      if (effectiveMaxQty !== null && effectiveMaxQty !== undefined && nextQuantity > effectiveMaxQty) {
+        showNotification(`Only ${effectiveMaxQty} unit(s) of ${product.name} available.`);
         return;
       }
 
-      // Dizideki o elemanı güncelle
       currentItems[existingIndex] = {
         ...existingItem,
         quantity: nextQuantity,
-        maxQuantity: existingItem.maxQuantity ?? maxQuantity
+        // Update maxQuantity if we have a fresh valid one
+        maxQuantity: effectiveMaxQty !== null ? effectiveMaxQty : existingItem.maxQuantity
       };
-      
+
       showNotification(`${product.name} quantity updated.`);
     } else {
-      // Ürün yoksa listeye yeni ekle
       currentItems.push({
         id: product.id ?? generateCartId(),
         name: product.name,
         price: product.price ?? 0,
-        quantity: 1,
+        quantity: quantity,
         image_url: product.image_url,
         description: product.description,
-        maxQuantity,
+        maxQuantity: effectiveMaxQty,
       });
-      
-      showNotification(`${product.name} is added to your cart.`);
+
+      showNotification(`${product.name} added to cart.`);
     }
 
-    // 3. Son olarak hem State'i hem de LocalStorage'ı güncelliyoruz
-    // (State güncellemesi UI'ın anlık değişmesini sağlar)
     setCartItems(currentItems);
     saveToStorage(currentItems);
   };
@@ -125,7 +134,7 @@ export function CartProvider({ children }) {
     const itemToRemove = cartItems.find((item) => item.id === productId);
 
     setCartItems((prev) => prev.filter((item) => item.id !== productId));
-    
+
     if (itemToRemove) {
       showNotification(`${itemToRemove.name} removed from cart.`);
     }
@@ -133,7 +142,7 @@ export function CartProvider({ children }) {
 
   const updateQuantity = (productId, newQuantity) => {
     if (newQuantity <= 0) {
-      removeFromCart(productId); 
+      removeFromCart(productId);
       return;
     }
 
@@ -153,7 +162,8 @@ export function CartProvider({ children }) {
         return prev;
       }
 
-      showNotification("Cart quantity updated.");
+      // showNotification("Cart quantity updated."); 
+      // Update: Don't show notification for every increment/decrement to avoid spam
       return prev.map((entry) =>
         entry.id === productId ? { ...entry, quantity: newQuantity } : entry
       );
@@ -174,12 +184,12 @@ export function CartProvider({ children }) {
       removeFromCart,
       updateQuantity,
       clearCart,
-      notification, 
-      clearNotification, 
+      notification,
+      clearNotification,
     }),
-    [cartItems, notification], 
+    [cartItems, notification],
   );
-  
+
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
