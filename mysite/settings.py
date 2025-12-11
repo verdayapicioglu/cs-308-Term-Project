@@ -178,11 +178,21 @@ CSRF_TRUSTED_ORIGINS = [
 # CORS Configuration (for React frontend)
 # Install: pip install django-cors-headers
 # Then add 'corsheaders' to INSTALLED_APPS and 'corsheaders.middleware.CorsMiddleware' to MIDDLEWARE
+# CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",  # Vite default port
     "http://localhost:3000",  # Alternative React port
     "http://127.0.0.1:5173",
     "http://127.0.0.1:3000",
+]
+
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
 ]
 
 CORS_ALLOW_CREDENTIALS = True

@@ -370,6 +370,33 @@ def order_list(request):
     """Get all orders/deliveries"""
     status_filter = request.query_params.get('status')
     
+    if USE_DATABASE and Order:
+        orders_query = Order.objects.all().order_by('-order_date', '-created_at')
+        if status_filter:
+            orders_query = orders_query.filter(status=status_filter)
+            
+        orders_data = [{
+            'delivery_id': o.delivery_id,
+            'customer_id': o.customer_id,
+            'customer_name': o.customer_name,
+            'customer_email': o.customer_email,
+            'product_id': o.product_id,
+            'product_name': o.product_name,
+            'quantity': o.quantity,
+            'total_price': float(o.total_price),
+            'delivery_address': o.delivery_address,
+            'status': o.status,
+            'order_date': o.order_date.strftime('%Y-%m-%d'),
+            'delivery_date': o.delivery_date.strftime('%Y-%m-%d') if o.delivery_date else None,
+            'created_at': o.created_at.isoformat() if hasattr(o, 'created_at') else None,
+        } for o in orders_query]
+        
+        return Response({
+            'orders': orders_data,
+            'count': len(orders_data)
+        }, status=status.HTTP_200_OK)
+
+    # Fallback to mock data
     orders = MOCK_ORDERS.copy()
     if status_filter:
         orders = [o for o in orders if o['status'] == status_filter]
@@ -456,10 +483,52 @@ def order_history(request):
         'count': len(orders_data)
     }, status=status.HTTP_200_OK)
 
+from django.views.decorators.csrf import csrf_exempt
+
 @api_view(['PUT'])
 @permission_classes([AllowAny])
+@csrf_exempt
 def order_update_status(request, delivery_id):
     """Update order status (processing, in-transit, delivered)"""
+    new_status = request.data.get('status')
+    valid_statuses = ['processing', 'in-transit', 'delivered']
+    
+    if new_status not in valid_statuses:
+        return Response(
+            {'error': f'Invalid status. Must be one of: {valid_statuses}'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    if USE_DATABASE and Order:
+        try:
+            order = Order.objects.get(delivery_id=delivery_id)
+            order.status = new_status
+            
+            if new_status == 'delivered' and not order.delivery_date:
+                from django.utils import timezone
+                order.delivery_date = timezone.now().date()
+            
+            order.save()
+            
+            return Response({
+                "delivery_id": order.delivery_id,
+                "customer_id": order.customer_id,
+                "customer_name": order.customer_name,
+                "customer_email": order.customer_email,
+                "product_id": order.product_id,
+                "product_name": order.product_name,
+                "quantity": order.quantity,
+                "total_price": float(order.total_price),
+                "delivery_address": order.delivery_address,
+                "status": order.status,
+                "order_date": order.order_date.strftime('%Y-%m-%d') if order.order_date else None,
+                "delivery_date": order.delivery_date.strftime('%Y-%m-%d') if order.delivery_date else None,
+            }, status=status.HTTP_200_OK)
+            
+        except Order.DoesNotExist:
+            pass # Fall through to mock data check if not in DB for some reason
+
+    # Fallback to mock data
     order = next((o for o in MOCK_ORDERS if o['delivery_id'] == delivery_id), None)
     
     if not order:
@@ -468,20 +537,12 @@ def order_update_status(request, delivery_id):
             status=status.HTTP_404_NOT_FOUND
         )
     
-    new_status = request.data.get('status')
-    valid_statuses = ['processing', 'in-transit', 'delivered']
-    
-    if new_status in valid_statuses:
-        order['status'] = new_status
-        if new_status == 'delivered' and not order.get('delivery_date'):
-            from datetime import datetime
-            order['delivery_date'] = datetime.now().strftime('%Y-%m-%d')
-        return Response(order, status=status.HTTP_200_OK)
-    
-    return Response(
-        {'error': f'Invalid status. Must be one of: {valid_statuses}'},
-        status=status.HTTP_400_BAD_REQUEST
-    )
+    order['status'] = new_status
+    if new_status == 'delivered' and not order.get('delivery_date'):
+        from datetime import datetime
+        order['delivery_date'] = datetime.now().strftime('%Y-%m-%d')
+        
+    return Response(order, status=status.HTTP_200_OK)
 
 # Comment Approval
 # Import Review and Order models
@@ -691,14 +752,9 @@ def delivery_dashboard_stats(request):
     from datetime import timedelta
     
     # Try to use database Order model, fallback to MOCK_ORDERS
-    try:
-        # from .models import Order # Already imported
-        USE_ORDER_DB = True
-    except ImportError:
-        USE_ORDER_DB = False
-        Order = None
     
-    if USE_ORDER_DB and Order:
+    # Use global database flag
+    if USE_DATABASE and Order:
         # Use database
         total_orders = Order.objects.count()
         processing_orders = Order.objects.filter(status='processing').count()
