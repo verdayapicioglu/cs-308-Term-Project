@@ -12,7 +12,7 @@ function Cart() {
   const isAuthenticated = localStorage.getItem('is_authenticated');
   const userEmail = localStorage.getItem('user_email');
   const userName = localStorage.getItem('user_name');
-  
+
   // Cart data (from localStorage)
   const [cartItems, setCartItems] = useState([]);
   const [total, setTotal] = useState(0);
@@ -83,10 +83,10 @@ function Cart() {
   };
 
   const taxRate = 0.18;
-  const shipping = 0; 
-  const invoiceTotal = total + shipping;        
-  const invoiceSubtotal = invoiceTotal / (1 + taxRate); 
-  const invoiceTax = invoiceTotal - invoiceSubtotal;    
+  const shipping = 0;
+  const invoiceTotal = total + shipping;
+  const invoiceSubtotal = invoiceTotal / (1 + taxRate);
+  const invoiceTax = invoiceTotal - invoiceSubtotal;
 
   const invoiceOrder = {
     id: orderId || 'PENDING',
@@ -111,19 +111,22 @@ function Cart() {
     totalQuantity,
   };
 
-// Open payment modal — login olsa da olmasa da ödeme ekranına geçsin
-const handleCheckout = () => {
-  setShowPayment(true);
-};
-
+  const handleCheckout = () => {
+    if (!isAuthenticated) {
+      // Logic Change: Redirect to login only when attempting to checkout
+      navigate('/login');
+    } else {
+      setShowPayment(true);
+    }
+  };
 
   // When payment is successful
   const handlePaymentSuccess = (newOrderId) => {
     setOrderId(newOrderId);
-    
+
     if (isAuthenticated && cartItems.length > 0) {
       const userId = localStorage.getItem('user_id') || userEmail;
-      
+
       const order = saveOrder({
         id: newOrderId,
         userId: userId,
@@ -137,15 +140,15 @@ const handleCheckout = () => {
         })),
         total: total,
         currency: 'TRY',
-        status: 'delivered', 
+        status: 'delivered',
         deliveryAddress: localStorage.getItem('user_address') || '',
       });
       console.log('Order saved:', order);
     }
-    
+
     setCartItems([]);
     localStorage.removeItem('cart_items');
-    
+
     setShowPayment(false);
     setTimeout(() => {
       navigate('/profile');
@@ -188,8 +191,14 @@ const handleCheckout = () => {
             {cartItems.map((item) => (
               <div key={item.id} className="cart-item">
                 <div className="cart-item-image">
-                  {/* Note: Ensure item.image is rendered correctly (emoji or img tag) */}
-                  <span className="item-emoji">{item.image}</span>
+                  <img
+                    src={item.image_url || 'https://via.placeholder.com/100x100?text=Product'}
+                    alt={item.name}
+                    className="item-img-cart"
+                    onError={(e) => {
+                      e.target.src = 'https://via.placeholder.com/100x100?text=Product';
+                    }}
+                  />
                 </div>
                 <div className="cart-item-details">
                   <h3>{item.name}</h3>
@@ -244,7 +253,7 @@ const handleCheckout = () => {
             </div>
 
             <button onClick={handleCheckout} className="checkout-button">
-            {"Proceed to Payment"}
+              {"Proceed to Payment"}
             </button>
 
             <button
