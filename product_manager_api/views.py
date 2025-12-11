@@ -7,7 +7,18 @@ from rest_framework.permissions import AllowAny  # TODO: Add proper authenticati
 from rest_framework.response import Response
 from rest_framework import status
 from django.utils import timezone
+from django.shortcuts import get_object_or_404
 import json
+from .models import Product # Import Product model
+
+# Import Review and Order models
+try:
+    from .models import Review, Order
+    USE_DATABASE = True
+except ImportError:
+    USE_DATABASE = False
+    Review = None
+    Order = None
 
 # Mock data - Will be replaced with database in future sprints
 MOCK_PRODUCTS = [
@@ -145,8 +156,26 @@ def product_list_create(request):
         sort_option = request.query_params.get('sort', '').strip().lower()
         
         # Start with all products
-        products = MOCK_PRODUCTS.copy()
+        products_queryset = Product.objects.all()
+        products = []
         
+        # Convert to dictionary format or use serializer (doing manual dict for now to match structure)
+        for p in products_queryset:
+            products.append({
+                "id": p.id,
+                "name": p.name,
+                "model": p.model,
+                "serial_number": p.serial_number,
+                "description": p.description,
+                "quantity_in_stock": p.quantity_in_stock,
+                "price": float(p.price),
+                "warranty_status": p.warranty_status,
+                "distributor": p.distributor,
+                "category": p.category,
+                "cost": float(p.cost) if p.cost else None,
+                "image_url": "https://via.placeholder.com/300x300?text=Product" # Placeholder for now
+            })
+
         # Apply sorting
         if sort_option == 'price':
             # Sort by price ascending, then by name
@@ -163,35 +192,84 @@ def product_list_create(request):
     
     elif request.method == 'POST':
         # Create new product
-        new_product = {
-            'id': len(MOCK_PRODUCTS) + 1,
-            **request.data
-        }
-        MOCK_PRODUCTS.append(new_product)
-        return Response(new_product, status=status.HTTP_201_CREATED)
+        try:
+            p = Product.objects.create(
+                name=request.data.get('name'),
+                model=request.data.get('model', ''),
+                serial_number=request.data.get('serial_number', ''),
+                description=request.data.get('description', ''),
+                quantity_in_stock=int(request.data.get('quantity_in_stock', 0)),
+                price=float(request.data.get('price', 0)),
+                warranty_status=request.data.get('warranty_status', ''),
+                distributor=request.data.get('distributor', ''),
+                category=request.data.get('category', ''),
+                cost=float(request.data.get('cost')) if request.data.get('cost') else None
+            )
+            
+            new_product = {
+                "id": p.id,
+                "name": p.name,
+                "model": p.model,
+                "serial_number": p.serial_number,
+                "description": p.description,
+                "quantity_in_stock": p.quantity_in_stock,
+                "price": float(p.price),
+                "warranty_status": p.warranty_status,
+                "distributor": p.distributor,
+                "category": p.category,
+                "cost": float(p.cost) if p.cost else None
+            }
+            return Response(new_product, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['GET', 'PUT', 'DELETE'])
 @permission_classes([AllowAny])
 def product_detail(request, product_id):
     """Get, update, or delete a specific product"""
-    product = next((p for p in MOCK_PRODUCTS if p['id'] == product_id), None)
-    
-    if not product:
-        return Response(
-            {'error': 'Product not found'},
-            status=status.HTTP_404_NOT_FOUND
-        )
+    product = get_object_or_404(Product, id=product_id)
     
     if request.method == 'GET':
-        return Response(product, status=status.HTTP_200_OK)
+        product_data = {
+            "id": product.id,
+            "name": product.name,
+            "model": product.model,
+            "serial_number": product.serial_number,
+            "description": product.description,
+            "quantity_in_stock": product.quantity_in_stock,
+            "price": float(product.price),
+            "warranty_status": product.warranty_status,
+            "distributor": product.distributor,
+            "category": product.category,
+            "cost": float(product.cost) if product.cost else None,
+            "image_url": "https://via.placeholder.com/300x300?text=Product"
+        }
+        return Response(product_data, status=status.HTTP_200_OK)
     
     elif request.method == 'PUT':
         # Update product
-        product.update(request.data)
-        return Response(product, status=status.HTTP_200_OK)
+        try:
+            if 'name' in request.data: product.name = request.data['name']
+            if 'description' in request.data: product.description = request.data['description']
+            if 'price' in request.data: product.price = float(request.data['price'])
+            if 'quantity_in_stock' in request.data: product.quantity_in_stock = int(request.data['quantity_in_stock'])
+            # Add other fields as needed
+            
+            product.save()
+            
+            product_data = {
+                "id": product.id,
+                "name": product.name,
+                "quantity_in_stock": product.quantity_in_stock,
+                "price": float(product.price),
+                # ...
+            }
+            return Response(product_data, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
     
     elif request.method == 'DELETE':
-        MOCK_PRODUCTS.remove(product)
+        product.delete()
         return Response(
             {'message': 'Product deleted successfully'},
             status=status.HTTP_200_OK
@@ -241,15 +319,16 @@ def category_delete(request, category_name):
 @permission_classes([AllowAny])
 def stock_list(request):
     """Get stock status for all products"""
+    products = Product.objects.all()
     stock_data = [
         {
-            'product_id': p['id'],
-            'product_name': p['name'],
-            'quantity_in_stock': p['quantity_in_stock'],
-            'low_stock': p['quantity_in_stock'] < 20,
-            'out_of_stock': p['quantity_in_stock'] == 0
+            'product_id': p.id,
+            'product_name': p.name,
+            'quantity_in_stock': p.quantity_in_stock,
+            'low_stock': p.quantity_in_stock < 20,
+            'out_of_stock': p.quantity_in_stock == 0
         }
-        for p in MOCK_PRODUCTS
+        for p in products
     ]
     return Response({'stock': stock_data}, status=status.HTTP_200_OK)
 
@@ -257,21 +336,26 @@ def stock_list(request):
 @permission_classes([AllowAny])
 def stock_update(request, product_id):
     """Update stock quantity for a product"""
-    product = next((p for p in MOCK_PRODUCTS if p['id'] == product_id), None)
-    
-    if not product:
-        return Response(
-            {'error': 'Product not found'},
-            status=status.HTTP_404_NOT_FOUND
-        )
+    product = get_object_or_404(Product, id=product_id)
     
     new_quantity = request.data.get('quantity_in_stock')
     if new_quantity is not None:
-        product['quantity_in_stock'] = int(new_quantity)
-        return Response(product, status=status.HTTP_200_OK)
+        try:
+            product.quantity_in_stock = int(new_quantity)
+            product.save()
+            return Response({
+                "id": product.id,
+                "name": product.name,
+                "quantity_in_stock": product.quantity_in_stock,
+            }, status=status.HTTP_200_OK)
+        except ValueError:
+            return Response(
+                {'error': 'Invalid quantity'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
     
     return Response(
-        {'error': 'Invalid quantity'},
+        {'error': 'Quantity not provided'},
         status=status.HTTP_400_BAD_REQUEST
     )
 
@@ -604,7 +688,7 @@ def delivery_dashboard_stats(request):
     
     # Try to use database Order model, fallback to MOCK_ORDERS
     try:
-        from .models import Order
+        # from .models import Order # Already imported
         USE_ORDER_DB = True
     except ImportError:
         USE_ORDER_DB = False
@@ -716,27 +800,54 @@ import uuid
 @permission_classes([AllowAny])
 def create_order(request):
     """Create a new order from checkout"""
-    data = request.data
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        data = request.data
+        
+        required_fields = ["customer_name", "customer_email", "product_name", 
+                           "quantity", "total_price", "delivery_address"]
 
-    required_fields = ["customer_name", "customer_email", "product_name", 
-                       "quantity", "total_price", "delivery_address"]
+        # missing field check
+        for field in required_fields:
+            if field not in data:
+                return Response(
+                    {"error": f"Missing field: {field}"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-    # missing field check
-    for field in required_fields:
-        if field not in data:
-            return Response(
-                {"error": f"Missing field: {field}"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        # Create delivery/order id
+        delivery_id = f"DEL-{uuid.uuid4().hex[:6].upper()}"
+        customer_id = f"CUST-{uuid.uuid4().hex[:6].upper()}"
+        order_date = date.today()
 
-    # Create delivery/order id
-    delivery_id = f"DEL-{uuid.uuid4().hex[:6].upper()}"
-    customer_id = f"CUST-{uuid.uuid4().hex[:6].upper()}"
-    order_date = date.today()
+        # Try to save to database first
+        if USE_DATABASE and Order:
+            # 1. Update Product Stock FIRST
+            product_id = data.get("product_id")
+            quantity_ordered = int(data.get("quantity", 1))
+            
+            # If product_id is provided, use it. If not, try to find by name (fallback)
+            product_obj = None
+            if product_id:
+                try:
+                    product_obj = Product.objects.get(id=product_id)
+                except Product.DoesNotExist:
+                    print(f"Product with id {product_id} not found.")
+            
+            # Decrease stock if product found
+            if product_obj:
+                if product_obj.quantity_in_stock >= quantity_ordered:
+                    product_obj.quantity_in_stock -= quantity_ordered
+                    product_obj.save()
+                else:
+                    return Response(
+                        {"error": f"Insufficient stock for {product_obj.name}. Available: {product_obj.quantity_in_stock}"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
 
-    # Try to save to database first
-    if USE_DATABASE and Order:
-        try:
+            # 2. Create Order
             order = Order.objects.create(
                 delivery_id=delivery_id,
                 customer_id=customer_id,
@@ -768,35 +879,36 @@ def create_order(request):
                 "delivery_date": order.delivery_date.strftime("%Y-%m-%d") if order.delivery_date else None,
             }
             
-            # Send email invoice
-            try:
-                send_invoice_email(new_order)
-            except Exception as e:
-                print("Email error:", e)
+            # Email sending removed due to model incompatibility
             
             return Response(
                 {"message": "Order created successfully", "order": new_order},
                 status=status.HTTP_201_CREATED
             )
-        except Exception as e:
-            print(f"Database error creating order: {e}")
-            # Fall through to mock data
-    
-    # Fallback to mock data
-    new_order = {
-        "delivery_id": delivery_id,
-        "customer_id": customer_id,
-        "customer_name": data["customer_name"],
-        "customer_email": data["customer_email"],
-        "product_id": data.get("product_id", None),
-        "product_name": data["product_name"],
-        "quantity": data["quantity"],
-        "total_price": data["total_price"],
-        "delivery_address": data["delivery_address"],
-        "status": "processing",
-        "order_date": order_date.strftime("%Y-%m-%d"),
-        "delivery_date": None
-    }
+        
+        # Fallback to mock data (only if DB not available)
+        new_order = {
+            "delivery_id": delivery_id,
+            "customer_id": customer_id,
+            "customer_name": data["customer_name"],
+            "customer_email": data["customer_email"],
+            "product_id": data.get("product_id", None),
+            "product_name": data["product_name"],
+            "quantity": data["quantity"],
+            "total_price": data["total_price"],
+            "delivery_address": data["delivery_address"],
+            "status": "processing",
+            "order_date": order_date.strftime("%Y-%m-%d"),
+            "delivery_date": None
+        }
+        return Response(
+            {"message": "Order created (MOCK)", "order": new_order},
+            status=status.HTTP_201_CREATED
+        )
+
+    except Exception as e:
+        import traceback
+        return Response({"error": str(e), "trace": traceback.format_exc()}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     # Add order to mock DB
     MOCK_ORDERS.append(new_order)
