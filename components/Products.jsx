@@ -84,18 +84,12 @@ export default function Products({ showFilters = true, limit = null }) {
     setSearchParams({});
   };
 
-  if (loading) {
-    return <div className="products-page">Loading…</div>;
-  }
 
-  if (error) {
-    return <div className="products-page">{error}</div>;
-  }
 
   return (
     <div className={showFilters ? "products-page" : ""}>
       {showFilters && <h1>Our Products</h1>}
-      
+
       {showFilters && (
         <div className="products-filters">
           <form onSubmit={handleSearch} className="search-form">
@@ -139,7 +133,11 @@ export default function Products({ showFilters = true, limit = null }) {
         </div>
       )}
 
-      {items.length === 0 ? (
+      {loading ? (
+        <div className="no-products">Loading…</div>
+      ) : error ? (
+        <div className="no-products">{error}</div>
+      ) : items.length === 0 ? (
         <div className="no-products">No products found.</div>
       ) : (
         <>
