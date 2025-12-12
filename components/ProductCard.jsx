@@ -8,6 +8,7 @@ function ProductCard({ product }) {
   // Handle missing quantity_in_stock - default to available if not specified
   const quantity = product.quantity_in_stock ?? 1;
   const isOutOfStock = quantity === 0;
+  const isLowStock = quantity > 0 && quantity <= 3; // Low stock threshold: 3 or fewer units
   const { addToCart } = useCart();
 
   const handleAddToCart = (e) => {
@@ -66,6 +67,11 @@ function ProductCard({ product }) {
           {product.quantity_in_stock !== undefined && (
             <div className="product-stock">
               In Stock: {product.quantity_in_stock}
+              {isLowStock && (
+                <div className="low-stock-warning">
+                  Last {product.quantity_in_stock} {product.quantity_in_stock === 1 ? 'unit' : 'units'}!
+                </div>
+              )}
             </div>
           )}
           <div className="product-category">{product.category}</div>

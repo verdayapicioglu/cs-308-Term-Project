@@ -21,6 +21,11 @@ function ProductDetail() {
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  
+  // Calculate stock status
+  const quantity = product?.quantity_in_stock ?? 1;
+  const isOutOfStock = quantity === 0;
+  const isLowStock = quantity > 0 && quantity <= 3; // Low stock threshold: 3 or fewer units
 
   // Review & Rating state
   const [ratingType, setRatingType] = useState('stars'); // 'stars' or 'points'
@@ -360,6 +365,11 @@ function ProductDetail() {
                   <span className={`detail-value ${product.quantity_in_stock === 0 ? 'out-of-stock' : ''}`}>
                     {product.quantity_in_stock}
                   </span>
+                  {isLowStock && (
+                    <div className="low-stock-warning-detail">
+                      ⚠️ Last {product.quantity_in_stock} {product.quantity_in_stock === 1 ? 'unit' : 'units'} remaining!
+                    </div>
+                  )}
                 </div>
               )}
             </div>

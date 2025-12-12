@@ -113,6 +113,18 @@
   margin-bottom: 5px;
 }
 
+.low-stock-warning {
+  margin-top: 5px;
+  padding: 6px 10px;
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 6px;
+  color: #856404;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
 .product-category {
   display: inline-block;
   background: #f0f0f0;
