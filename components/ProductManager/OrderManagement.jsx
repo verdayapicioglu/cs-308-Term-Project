@@ -110,13 +110,23 @@ function OrderManagement() {
                 <span className="info-label">Email:</span>
                 <span className="info-value">{order.customer_email}</span>
               </div>
-              <div className="info-row">
-                <span className="info-label">Product:</span>
-                <span className="info-value">{order.product_name}</span>
-              </div>
-              <div className="info-row">
-                <span className="info-label">Quantity:</span>
-                <span className="info-value">{order.quantity}</span>
+              <div className="info-row full-width">
+                <span className="info-label">Products:</span>
+                <div className="om-items-list">
+                  {(order.items || []).map((item, idx) => (
+                    <div key={idx} className="om-item-detail">
+                      <span>{item.product_name}</span>
+                      <span>x{item.quantity}</span>
+                      <span>${(item.price || 0).toFixed(2)}</span>
+                    </div>
+                  ))}
+                  {(!order.items || order.items.length === 0) && (
+                    <div className="om-item-detail">
+                      <span>{order.product_name}</span>
+                      <span>x{order.quantity}</span>
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="info-row">
                 <span className="info-label">Total Price:</span>

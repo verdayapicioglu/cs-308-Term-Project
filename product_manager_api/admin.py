@@ -2,7 +2,7 @@
 Django Admin configuration for Product Manager API
 """
 from django.contrib import admin
-from .models import Product, Order, Review
+from .models import Product, Order, Review, OrderItem
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
@@ -39,12 +39,18 @@ class ProductAdmin(admin.ModelAdmin):
         }),
     )
 
+class OrderItemInline(admin.TabularInline):
+    model = OrderItem
+    extra = 0
+    readonly_fields = ('product_name', 'price', 'quantity')
+
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ('delivery_id', 'customer_name', 'product_name', 'quantity', 'total_price', 'status', 'order_date')
+    list_display = ('delivery_id', 'customer_name', 'total_price', 'status', 'order_date')
     list_filter = ('status', 'order_date', 'delivery_date')
-    search_fields = ('delivery_id', 'customer_name', 'customer_email', 'product_name', 'delivery_address')
+    search_fields = ('delivery_id', 'customer_name', 'customer_email', 'delivery_address')
     readonly_fields = ('created_at', 'updated_at')
+    inlines = [OrderItemInline]
     fieldsets = (
         ('Order Information', {
             'fields': ('delivery_id', 'status', 'order_date', 'delivery_date')
@@ -52,8 +58,8 @@ class OrderAdmin(admin.ModelAdmin):
         ('Customer Information', {
             'fields': ('customer_id', 'customer_name', 'customer_email', 'delivery_address')
         }),
-        ('Product Information', {
-            'fields': ('product_id', 'product_name', 'quantity', 'total_price')
+        ('Payment Information', {
+            'fields': ('total_price',)
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),

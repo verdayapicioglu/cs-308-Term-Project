@@ -41,9 +41,7 @@ class Order(models.Model):
     customer_id = models.CharField(max_length=50, db_index=True)
     customer_name = models.CharField(max_length=200)
     customer_email = models.EmailField()
-    product_id = models.IntegerField()
-    product_name = models.CharField(max_length=200)
-    quantity = models.IntegerField(validators=[MinValueValidator(1)])
+    # Product details moved to OrderItem
     total_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
     delivery_address = models.TextField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='processing', db_index=True)
@@ -68,6 +66,17 @@ class Order(models.Model):
             if not self.delivery_date:
                 self.delivery_date = timezone.now().date()
             self.save()
+
+
+class OrderItem(models.Model):
+    order = models.ForeignKey(Order, related_name='items', on_delete=models.CASCADE)
+    product_id = models.IntegerField()
+    product_name = models.CharField(max_length=200)
+    quantity = models.IntegerField(validators=[MinValueValidator(1)])
+    price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+    
+    def __str__(self):
+        return f"{self.quantity} x {self.product_name} in Order {self.order.delivery_id}"
 
 
 class Review(models.Model):

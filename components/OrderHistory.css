@@ -320,3 +320,41 @@
   }
 }
 
+
+.order-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding-top: 4px;
+}
+
+.order-item-detail {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  font-size: 14px;
+  color: #4a3a5a;
+  padding: 4px 0;
+  border-bottom: 1px dashed #eee;
+}
+
+.order-item-detail:last-child {
+  border-bottom: none;
+}
+
+.item-name {
+    flex: 2;
+    font-weight: 500;
+}
+.item-qty {
+    flex: 0.5;
+    text-align: center;
+    color: #6b5b7a;
+}
+.item-price {
+    flex: 1;
+    text-align: right;
+    font-weight: 600;
+    color: #5c0f4e;
+}

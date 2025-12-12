@@ -19,7 +19,7 @@ function OrderHistory() {
       navigate('/login', { state: { from: '/order-history' } });
       return;
     }
-    
+
     loadUserEmail();
   }, [navigate]);
 
@@ -36,7 +36,7 @@ function OrderHistory() {
       setUserEmail(storedEmail);
       return;
     }
-    
+
     // Eğer localStorage'da yoksa backend'den al
     try {
       const response = await authAPI.getCurrentUser();
@@ -133,8 +133,8 @@ function OrderHistory() {
     <div className="order-history-page">
       <div className="order-history-container">
         <div className="order-history-header">
-          <button 
-            className="back-button" 
+          <button
+            className="back-button"
             onClick={() => navigate('/profile')}
             aria-label="Back to profile"
           >
@@ -158,7 +158,7 @@ function OrderHistory() {
             <div className="empty-state-icon">📦</div>
             <h2>No orders yet</h2>
             <p>You haven't placed any orders yet. Start shopping to see your order history here!</p>
-            <button 
+            <button
               className="primary-button"
               onClick={() => navigate('/products')}
             >
@@ -181,13 +181,24 @@ function OrderHistory() {
 
                 <div className="order-card-body">
                   <div className="order-info-item full-width product-row">
-                    <span className="info-label">Product:</span>
-                    <span className="info-value">{order.product_name}</span>
-                  </div>
-
-                  <div className="order-info-item inline-row">
-                    <span className="info-label">Quantity:</span>
-                    <span className="info-value">×{order.quantity}</span>
+                    <span className="info-label">Products:</span>
+                    <div className="order-items-list">
+                      {order.items && order.items.length > 0 ? (
+                        order.items.map((item, idx) => (
+                          <div key={idx} className="order-item-detail">
+                            <span className="item-name">{item.product_name}</span>
+                            <span className="item-qty">x{item.quantity}</span>
+                            <span className="item-price">{formatCurrency(item.price)}</span>
+                          </div>
+                        ))
+                      ) : (
+                        /* Fallback for old data */
+                        <div className="order-item-detail">
+                          <span className="item-name">{order.product_name}</span>
+                          <span className="item-qty">x{order.quantity}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <div className="order-info-row">

@@ -11,16 +11,19 @@ from django.shortcuts import get_object_or_404
 import json
 from django.db.models import Avg, Q, Value
 from django.db.models.functions import Coalesce
+from django.db.models.functions import Coalesce
+from django.db import transaction # Import transaction
 from .models import Product # Import Product model
 
 # Import Review and Order models
 try:
-    from .models import Review, Order
+    from .models import Review, Order, OrderItem
     USE_DATABASE = True
 except ImportError:
     USE_DATABASE = False
     Review = None
     Order = None
+    OrderItem = None
 
 # Mock data - Will be replaced with database in future sprints
 MOCK_PRODUCTS = [
@@ -419,22 +422,26 @@ def order_list(request):
     product_filter = request.query_params.get('product_id')
     
     if USE_DATABASE and Order:
-        orders_query = Order.objects.all().order_by('-order_date', '-created_at')
+        orders_query = Order.objects.all().prefetch_related('items').order_by('-order_date', '-created_at')
         if status_filter:
             orders_query = orders_query.filter(status=status_filter)
         if email_filter:
             orders_query = orders_query.filter(customer_email=email_filter)
+        # product_filter might be tricky now since it's in items.
         if product_filter:
-            orders_query = orders_query.filter(product_id=product_filter)
+             orders_query = orders_query.filter(items__product_id=product_filter).distinct()
             
         orders_data = [{
             'delivery_id': o.delivery_id,
             'customer_id': o.customer_id,
             'customer_name': o.customer_name,
             'customer_email': o.customer_email,
-            'product_id': o.product_id,
-            'product_name': o.product_name,
-            'quantity': o.quantity,
+            'items': [{
+                'product_id': item.product_id,
+                'product_name': item.product_name,
+                'quantity': item.quantity,
+                'price': float(item.price)
+            } for item in o.items.all()],
             'total_price': float(o.total_price),
             'delivery_address': o.delivery_address,
             'status': o.status,
@@ -462,6 +469,31 @@ def order_list(request):
 @permission_classes([AllowAny])
 def order_detail(request, delivery_id):
     """Get specific order details"""
+    if USE_DATABASE and Order:
+        try:
+            order = Order.objects.prefetch_related('items').get(delivery_id=delivery_id)
+            return Response({
+                "delivery_id": order.delivery_id,
+                "customer_id": order.customer_id,
+                "customer_name": order.customer_name,
+                "customer_email": order.customer_email,
+                "items": [{
+                    "product_id": item.product_id,
+                    "product_name": item.product_name,
+                    "quantity": item.quantity,
+                    "price": float(item.price)
+                } for item in order.items.all()],
+                "total_price": float(order.total_price),
+                "delivery_address": order.delivery_address,
+                "status": order.status,
+                "order_date": order.order_date.strftime('%Y-%m-%d') if order.order_date else None,
+                "delivery_date": order.delivery_date.strftime('%Y-%m-%d') if order.delivery_date else None,
+                "created_at": order.created_at.isoformat() if hasattr(order, 'created_at') else None,
+            }, status=status.HTTP_200_OK)
+        except Order.DoesNotExist:
+            pass # Fall through to mock data
+
+    # Fallback to mock data
     order = next((o for o in MOCK_ORDERS if o['delivery_id'] == delivery_id), None)
     
     if not order:
@@ -484,32 +516,36 @@ def order_history(request):
             status=status.HTTP_400_BAD_REQUEST
         )
     
-    try:
-        from .models import Order
-        USE_ORDER_DB = True
-    except ImportError:
-        USE_ORDER_DB = False
-        Order = None
+    # Database check handled globally
+    USE_ORDER_DB = USE_DATABASE
     
-    if USE_ORDER_DB and Order:
+    if USE_DATABASE and Order:
         # Use database
-        orders_query = Order.objects.filter(customer_email=email).order_by('-order_date', '-created_at')
-        
-        orders_data = [{
-            'delivery_id': o.delivery_id,
-            'customer_id': o.customer_id,
-            'customer_name': o.customer_name,
-            'customer_email': o.customer_email,
-            'product_id': o.product_id,
-            'product_name': o.product_name,
-            'quantity': o.quantity,
-            'total_price': float(o.total_price),
-            'delivery_address': o.delivery_address,
-            'status': o.status,
-            'order_date': o.order_date.strftime('%Y-%m-%d'),
-            'delivery_date': o.delivery_date.strftime('%Y-%m-%d') if o.delivery_date else None,
-            'created_at': o.created_at.isoformat() if hasattr(o, 'created_at') else None,
-        } for o in orders_query]
+        try:
+            orders_query = Order.objects.filter(customer_email=email).prefetch_related('items').order_by('-order_date', '-created_at')
+            
+            orders_data = [{
+                'delivery_id': o.delivery_id,
+                'customer_id': o.customer_id,
+                'customer_name': o.customer_name,
+                'customer_email': o.customer_email,
+                'items': [{
+                    'product_id': item.product_id,
+                    'product_name': item.product_name,
+                    'quantity': item.quantity,
+                    'price': float(item.price)
+                } for item in o.items.all()],
+                'total_price': float(o.total_price),
+                'delivery_address': o.delivery_address,
+                'status': o.status,
+                'order_date': o.order_date.strftime('%Y-%m-%d'),
+                'delivery_date': o.delivery_date.strftime('%Y-%m-%d') if o.delivery_date else None,
+                'created_at': o.created_at.isoformat() if hasattr(o, 'created_at') else None,
+            } for o in orders_query]
+        except Exception as e:
+            print(f"Error fetching order history: {e}")
+            orders_data = [] # Fallback or return error?
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     else:
         # Use mock data
         orders_data = [
@@ -567,9 +603,12 @@ def order_update_status(request, delivery_id):
                 "customer_id": order.customer_id,
                 "customer_name": order.customer_name,
                 "customer_email": order.customer_email,
-                "product_id": order.product_id,
-                "product_name": order.product_name,
-                "quantity": order.quantity,
+                "items": [{
+                    "product_id": item.product_id,
+                    "product_name": item.product_name,
+                    "quantity": item.quantity,
+                    "price": float(item.price)
+                } for item in order.items.all()],
                 "total_price": float(order.total_price),
                 "delivery_address": order.delivery_address,
                 "status": order.status,
@@ -618,7 +657,7 @@ def review_create(request):
         # Validation: Check if user has purchased this product and it is delivered
         if not Order.objects.filter(
             customer_email=user_email,
-            product_id=product_id,
+            items__product_id=product_id,
             status='delivered'
         ).exists():
             return Response(
@@ -922,8 +961,8 @@ def create_order(request):
     try:
         data = request.data
         
-        required_fields = ["customer_name", "customer_email", "product_name", 
-                           "quantity", "total_price", "delivery_address"]
+        # Validate required top-level fields
+        required_fields = ["customer_name", "customer_email", "total_price", "delivery_address", "items"]
 
         # missing field check
         for field in required_fields:
@@ -933,6 +972,13 @@ def create_order(request):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
+        items = data.get('items', [])
+        if not items or not isinstance(items, list):
+             return Response(
+                {"error": "items field must be a non-empty list"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         # Create delivery/order id
         delivery_id = f"DEL-{uuid.uuid4().hex[:6].upper()}"
         customer_id = f"CUST-{uuid.uuid4().hex[:6].upper()}"
@@ -940,44 +986,64 @@ def create_order(request):
 
         # Try to save to database first
         if USE_DATABASE and Order:
-            # 1. Update Product Stock FIRST
-            product_id = data.get("product_id")
-            quantity_ordered = int(data.get("quantity", 1))
-            
-            # If product_id is provided, use it. If not, try to find by name (fallback)
-            product_obj = None
-            if product_id:
-                try:
-                    product_obj = Product.objects.get(id=product_id)
-                except Product.DoesNotExist:
-                    print(f"Product with id {product_id} not found.")
-            
-            # Decrease stock if product found
-            if product_obj:
-                if product_obj.quantity_in_stock >= quantity_ordered:
-                    product_obj.quantity_in_stock -= quantity_ordered
-                    product_obj.save()
-                else:
-                    return Response(
-                        {"error": f"Insufficient stock for {product_obj.name}. Available: {product_obj.quantity_in_stock}"},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
+            with transaction.atomic():
+                # 1. Create Order
+                order = Order.objects.create(
+                    delivery_id=delivery_id,
+                    customer_id=customer_id,
+                    customer_name=data["customer_name"],
+                    customer_email=data["customer_email"],
+                    total_price=data["total_price"],
+                    delivery_address=data["delivery_address"],
+                    status="processing",
+                    order_date=order_date,
+                    delivery_date=None
+                )
+                
+                order_items_data = []
 
-            # 2. Create Order
-            order = Order.objects.create(
-                delivery_id=delivery_id,
-                customer_id=customer_id,
-                customer_name=data["customer_name"],
-                customer_email=data["customer_email"],
-                product_id=data.get("product_id", 0),
-                product_name=data["product_name"],
-                quantity=data["quantity"],
-                total_price=data["total_price"],
-                delivery_address=data["delivery_address"],
-                status="processing",
-                order_date=order_date,
-                delivery_date=None
-            )
+                # 2. Process Items
+                for item in items:
+                    product_id = item.get("product_id")
+                    quantity_ordered = int(item.get("quantity", 1))
+                    price = float(item.get("price", 0)) # Should theoretically come from backend for security, but using payload for now
+                    product_name = item.get("product_name", "Unknown Product")
+
+                    # If product_id is provided, use it.
+                    product_obj = None
+                    if product_id:
+                        try:
+                            product_obj = Product.objects.select_for_update().get(id=product_id)
+                        except Product.DoesNotExist:
+                             # Should we fail the whole order? Yes.
+                             raise Exception(f"Product with id {product_id} not found.")
+                    
+                    # Decrease stock/validate
+                    if product_obj:
+                        if product_obj.quantity_in_stock >= quantity_ordered:
+                            product_obj.quantity_in_stock -= quantity_ordered
+                            product_obj.save()
+                        else:
+                            # Rollback transaction
+                             raise Exception(f"Insufficient stock for {product_obj.name}. Available: {product_obj.quantity_in_stock}")
+                    
+                    # Create OrderItem
+                    OrderItem.objects.create(
+                        order=order,
+                        product_id=product_id or 0,
+                        product_name=product_name,
+                        quantity=quantity_ordered,
+                        price=price
+                    )
+                    
+                    order_items_data.append({
+                        "product_id": product_id,
+                        "product_name": product_name,
+                        "quantity": quantity_ordered,
+                        "price": price
+                    })
+
+
             
             # Convert to dict for response
             new_order = {
@@ -985,17 +1051,13 @@ def create_order(request):
                 "customer_id": order.customer_id,
                 "customer_name": order.customer_name,
                 "customer_email": order.customer_email,
-                "product_id": order.product_id,
-                "product_name": order.product_name,
-                "quantity": order.quantity,
+                "items": order_items_data,
                 "total_price": float(order.total_price),
                 "delivery_address": order.delivery_address,
                 "status": order.status,
                 "order_date": order.order_date.strftime("%Y-%m-%d") if order.order_date else None,
                 "delivery_date": order.delivery_date.strftime("%Y-%m-%d") if order.delivery_date else None,
             }
-            
-            # Email sending removed due to model incompatibility
             
             return Response(
                 {"message": "Order created successfully", "order": new_order},
@@ -1008,9 +1070,7 @@ def create_order(request):
             "customer_id": customer_id,
             "customer_name": data["customer_name"],
             "customer_email": data["customer_email"],
-            "product_id": data.get("product_id", None),
-            "product_name": data["product_name"],
-            "quantity": data["quantity"],
+            "items": items,
             "total_price": data["total_price"],
             "delivery_address": data["delivery_address"],
             "status": "processing",
@@ -1024,7 +1084,12 @@ def create_order(request):
 
     except Exception as e:
         import traceback
-        return Response({"error": str(e), "trace": traceback.format_exc()}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # If transaction raises exception, it's caught here and response is 500 or 400
+        # If stock check failed (custom logic), we might want 400.
+        err_msg = str(e)
+        if "Insufficient stock" in err_msg:
+             return Response({"error": err_msg}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": err_msg, "trace": traceback.format_exc()}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     # Add order to mock DB
     MOCK_ORDERS.append(new_order)
@@ -1058,15 +1123,18 @@ def user_order_history(request):
     # Try to get orders from database first
     if USE_DATABASE and Order:
         try:
-            orders = Order.objects.filter(customer_email=user_email).order_by('-order_date', '-created_at')
+            orders = Order.objects.filter(customer_email=user_email).prefetch_related('items').order_by('-order_date', '-created_at')
             orders_data = [{
                 'delivery_id': order.delivery_id,
                 'customer_id': order.customer_id,
                 'customer_name': order.customer_name,
                 'customer_email': order.customer_email,
-                'product_id': order.product_id,
-                'product_name': order.product_name,
-                'quantity': order.quantity,
+                'items': [{
+                    'product_id': item.product_id,
+                    'product_name': item.product_name,
+                    'quantity': item.quantity,
+                    'price': float(item.price)
+                } for item in order.items.all()],
                 'total_price': float(order.total_price),
                 'delivery_address': order.delivery_address,
                 'status': order.status,

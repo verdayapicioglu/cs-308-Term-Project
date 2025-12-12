@@ -175,3 +175,35 @@
 }
 
 
+
+.info-row.full-width {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.om-items-list {
+  width: 100%;
+  margin-top: 8px;
+  background: #fafafa;
+  border-radius: 4px;
+  padding: 8px;
+  border: 1px solid #eee;
+}
+
+.om-item-detail {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid #eee;
+  font-size: 13px;
+  color: #555;
+}
+
+.om-item-detail:last-child {
+  border-bottom: none;
+}
+
+.om-item-detail span:first-child {
+  flex: 2;
+  font-weight: 500;
+}
