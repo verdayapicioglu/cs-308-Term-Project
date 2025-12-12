@@ -175,6 +175,51 @@
   color: #4b378c;
 }
 
+.pm-invoice-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #e0daf8;
+  padding-bottom: 12px;
+}
+
+.pm-invoice-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.pm-invoice-item span:first-child {
+  flex: 1;
+  font-weight: 500;
+  margin-right: 8px;
+}
+
+.pm-invoice-item span:nth-child(2) {
+  color: #666;
+  margin-right: 12px;
+  font-size: 0.85em;
+}
+
+.pm-invoice-item span:last-child {
+  font-weight: 600;
+  min-width: 60px;
+  text-align: right;
+}
+
+.pm-invoice-totals {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pm-invoice-totals>div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 .pm-invoice-row {
   display: flex;
   justify-content: space-between;
@@ -213,10 +258,12 @@
 
 .pm-primary {
   /*rengi override ediyoruz */
-  background: #4b378c; /* PatiHouse moru */
+  background: #4b378c;
+  /* PatiHouse moru */
 }
 
 .pm-primary:hover {
   filter: brightness(1.05);
-  background: #5a41a3; /* biraz daha açık mor hover */
+  background: #5a41a3;
+  /* biraz daha açık mor hover */
 }
