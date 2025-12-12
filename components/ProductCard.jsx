@@ -28,11 +28,11 @@ function ProductCard({ product }) {
 
     for (let i = 0; i < 5; i++) {
       if (i < fullStars) {
-        stars.push(<span key={i} className="star">★</span>);
+        stars.push(<span key={i} className="star filled">★</span>);
       } else if (i === fullStars && hasHalfStar) {
-        stars.push(<span key={i} className="star">★</span>); // Using full star for simplicity or could use unicode half star if font supports
+        stars.push(<span key={i} className="star filled">★</span>); // Using full star for simplicity or could use unicode half star if font supports
       } else {
-        stars.push(<span key={i} className="star" style={{ color: '#d1d5db' }}>★</span>);
+        stars.push(<span key={i} className="star">★</span>);
       }
     }
     return stars;
@@ -57,8 +57,11 @@ function ProductCard({ product }) {
       <div className="product-info">
         <h3 className="product-name">{product.name}</h3>
         <div className="product-rating">
-          {renderStars(product.rating)}
-          <span className="rating-value">({product.rating ? product.rating.toFixed(1) : '0.0'})</span>
+          {renderStars(product.average_rating)}
+          <span className="rating-value">
+            {product.average_rating ? product.average_rating.toFixed(1) : '0.0'}
+            {' '}({product.rating_count !== undefined ? product.rating_count : 0})
+          </span>
         </div>
         <p className="product-description">{product.description}</p>
         <div className="product-details">

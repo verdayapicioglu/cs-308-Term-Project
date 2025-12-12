@@ -177,6 +177,7 @@ def product_list_create(request):
             # Calculate average rating from pre-fetched data
             ratings = product_ratings.get(p.id, [])
             avg_rating = sum(ratings) / len(ratings) if ratings else 0.0
+            rating_count = len(ratings)
 
             products.append({
                 "id": p.id,
@@ -191,7 +192,8 @@ def product_list_create(request):
                 "category": p.category,
                 "cost": float(p.cost) if p.cost else None,
                 "image_url": p.image_url if p.image_url else "https://via.placeholder.com/300x300?text=Product",
-                "average_rating": float(avg_rating)
+                "average_rating": float(avg_rating),
+                "rating_count": rating_count
             })
 
         # Apply sorting
