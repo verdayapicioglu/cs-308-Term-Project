@@ -192,10 +192,12 @@ function OrderHistory() {
                           </div>
                         ))
                       ) : (
-                        /* Fallback for old data */
-                        <div className="order-item-detail">
-                          <span className="item-name">{order.product_name}</span>
-                          <span className="item-qty">x{order.quantity}</span>
+                        /* Fallback for old/legacy data where items might be missing */
+                        <div className="order-item-detail legacy-order">
+                          <span className="item-name">
+                            {order.product_name || "Product details unavailable (Legacy Order)"}
+                          </span>
+                          {order.quantity && <span className="item-qty">x{order.quantity}</span>}
                         </div>
                       )}
                     </div>

@@ -143,11 +143,11 @@ function Profile() {
       setError('');
       const response = await authAPI.getCurrentUser();
       const userData = response.data;
-      
+
       if (userData) {
         const profileData = userData.profile || {};
         const fullName = `${userData.first_name || ''} ${userData.last_name || ''}`.trim() || userData.username;
-        
+
         // Merge backend data with local defaults
         setProfile(prev => ({
           ...prev,
@@ -208,19 +208,33 @@ function Profile() {
   };
 
   const transformOrders = (orders) => {
-    return orders.map(order => ({
-      id: order.delivery_id || order.id,
-      date: order.order_date || order.date,
-      status: order.status === 'processing' ? 'Processing' : 
-              order.status === 'in-transit' ? 'In transit' : 
-              order.status === 'delivered' ? 'Delivered' : order.status,
-      total: parseFloat(order.total_price) || 0,
-      currency: 'TRY',
-      items: [{
-        name: order.product_name || 'Product',
-        quantity: order.quantity || 1,
-      }],
-    }));
+    return orders.map(order => {
+      let items = [];
+
+      if (order.items && order.items.length > 0) {
+        items = order.items.map(item => ({
+          name: item.product_name,
+          quantity: item.quantity
+        }));
+      } else {
+        // Fallback for legacy data
+        items = [{
+          name: order.product_name || 'Product details unavailable',
+          quantity: order.quantity
+        }];
+      }
+
+      return {
+        id: order.delivery_id || order.id,
+        date: order.order_date || order.date,
+        status: order.status === 'processing' ? 'Processing' :
+          order.status === 'in-transit' ? 'In transit' :
+            order.status === 'delivered' ? 'Delivered' : order.status,
+        total: parseFloat(order.total_price) || 0,
+        currency: 'TRY',
+        items: items,
+      };
+    });
   };
 
   const saveProfileToBackend = async (updatedFields) => {
@@ -278,7 +292,7 @@ function Profile() {
   const handleUpdateProfile = async (field, value) => {
     const updatedProfile = { ...profile, [field]: value };
     setProfile(updatedProfile);
-    
+
     // Map frontend fields to backend fields
     const backendFields = {
       phone: 'phone',
@@ -287,7 +301,7 @@ function Profile() {
       points: 'loyalty_points',
       petsSupported: 'pets_supported',
     };
-    
+
     if (backendFields[field]) {
       try {
         await saveProfileToBackend({ [backendFields[field]]: value });
@@ -330,10 +344,10 @@ function Profile() {
   return (
     <div className="profile-page">
       {error && (
-        <div style={{ 
-          padding: '1rem', 
-          margin: '1rem', 
-          backgroundColor: '#fee', 
+        <div style={{
+          padding: '1rem',
+          margin: '1rem',
+          backgroundColor: '#fee',
           border: '1px solid #fcc',
           borderRadius: '4px',
           color: '#c33'
@@ -428,62 +442,62 @@ function Profile() {
           </header>
           <div className="order-list">
 
-          {ordersLoading ? (
-            <div style={{ padding: '1rem', textAlign: 'center' }}>
-              Loading orders...
-            </div>
-          ) : recentOrders.length === 0 ? (
-            <div style={{ padding: '1rem', textAlign: 'center', color: '#666' }}>
-              No recent orders found.
-            </div>
-          ) : (
-            recentOrders.map((order) => (
-              <div key={order.id} className="order-item">
-                <div className="order-meta">
-                  <span className="order-id">{order.id}</span>
-                  <span className={`status-chip status-${order.status.toLowerCase().replace(/\s+/g, '-')}`}>
-                    {order.status}
-                  </span>
-                </div>
-
-                <p className="order-date">{formatDate(order.date)}</p>
-
-                <p className="order-total">
-                  {order.total.toLocaleString('tr-TR', {
-                    style: 'currency',
-                    currency: order.currency,
-                  })}
-                </p>
-
-                <ul className="order-products">
-                  {order.items.map((item, index) => (
-                    <li key={`${order.id}-${index}`}>
-                      {item.name}
-                      <span className="quantity">×{item.quantity}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <div className="order-actions">
-                  <button 
-                    type="button" 
-                    className="primary-link"
-                    onClick={() => navigate('/order-history')}
-                  >
-                    View order
-                  </button>
-                  <button 
-                    type="button" 
-                    className="ghost-button"
-                    onClick={() => navigate('/products')}
-                  >
-                    Buy again
-                  </button>
-                </div>
+            {ordersLoading ? (
+              <div style={{ padding: '1rem', textAlign: 'center' }}>
+                Loading orders...
               </div>
-            ))
-          )}
-        </div>
+            ) : recentOrders.length === 0 ? (
+              <div style={{ padding: '1rem', textAlign: 'center', color: '#666' }}>
+                No recent orders found.
+              </div>
+            ) : (
+              recentOrders.map((order) => (
+                <div key={order.id} className="order-item">
+                  <div className="order-meta">
+                    <span className="order-id">{order.id}</span>
+                    <span className={`status-chip status-${order.status.toLowerCase().replace(/\s+/g, '-')}`}>
+                      {order.status}
+                    </span>
+                  </div>
+
+                  <p className="order-date">{formatDate(order.date)}</p>
+
+                  <p className="order-total">
+                    {order.total.toLocaleString('tr-TR', {
+                      style: 'currency',
+                      currency: order.currency,
+                    })}
+                  </p>
+
+                  <ul className="order-products">
+                    {order.items.map((item, index) => (
+                      <li key={`${order.id}-${index}`}>
+                        {item.name}
+                        <span className="quantity">×{item.quantity}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <div className="order-actions">
+                    <button
+                      type="button"
+                      className="primary-link"
+                      onClick={() => navigate('/order-history')}
+                    >
+                      View order
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      onClick={() => navigate('/products')}
+                    >
+                      Buy again
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </article>
 
         <article className="profile-card preferences-card">
