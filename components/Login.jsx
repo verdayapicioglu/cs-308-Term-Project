@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './Login.css';
-import { getMockUsers } from './authUtils';
+import { authAPI, storeUserData } from './api';
 
 function Login() {
   const [email, setEmail] = useState('');
@@ -15,35 +15,42 @@ function Login() {
     setError('');
     setLoading(true);
 
-    // Simüle edilmiş API çağrısı (gerçekçi loading için)
-    setTimeout(() => {
-      try {
-        const mockUsers = getMockUsers();
+    try {
+      // Call backend API for login
+      const response = await authAPI.login(email, password);
+      
+      if (response.data && response.data.user) {
+        const user = response.data.user;
         
-        // Kullanıcıyı bul
-        const user = mockUsers.find(
-          (u) => u.email === email.toLowerCase() && u.password === password
-        );
-
-        if (user) {
-          // Kullanıcı bilgilerini localStorage'a kaydet
-          localStorage.setItem('user_email', user.email);
-          localStorage.setItem('user_name', user.name);
-          localStorage.setItem('user_id', user.id);
-          localStorage.setItem('is_authenticated', 'true');
-          
-          // Başarılı login - products sayfasına yönlendir
-          navigate('/products');
-        } else {
-          setError('Invalid email or password. Please try again.');
+        // Store user data in localStorage
+        storeUserData(user);
+        
+        // Also store additional profile data if available
+        if (user.profile) {
+          localStorage.setItem('user_phone', user.profile.phone || '');
+          localStorage.setItem('user_bio', user.profile.bio || '');
         }
-      } catch (error) {
-        setError('Failed to login. Please try again.');
-        console.error('Login error:', error);
-      } finally {
-        setLoading(false);
+        
+        // Successful login - redirect to products page
+        navigate('/products');
+      } else {
+        setError('Login failed. Please try again.');
       }
-    }, 800); // 800ms loading simülasyonu
+    } catch (error) {
+      console.error('Login error:', error);
+      
+      // Handle different error types
+      if (error.response) {
+        const errorData = error.response.data;
+        setError(errorData.error || errorData.detail || 'Invalid email or password. Please try again.');
+      } else if (error.message) {
+        setError(error.message);
+      } else {
+        setError('Failed to login. Please check your connection and try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleForgotPassword = () => {
@@ -99,7 +106,7 @@ function Login() {
           Don't have an account? <Link to="/signup">Sign up here</Link>
         </p>
         <div className="mock-info">
-          <small>Demo: admin@petstore.com / admin123</small>
+          <small>Test accounts available in database. Use any registered email/username and password.</small>
         </div>
       </div>
     </div>

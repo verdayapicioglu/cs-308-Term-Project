@@ -1,17 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { productsAPI } from '../product_manager_api';
-import { 
-  hasDeliveredProduct, 
+import { productManagerAPI } from './api';
+import {
+  hasDeliveredProduct,
   hasReviewedProduct,
   hasRatedProduct,
-  getUserRating,
-  saveReview, 
-  saveRating,
-  getApprovedReviews,
-  getProductRatings,
-  getAverageRating
 } from './reviewUtils';
+import { useCart } from '../context/CartContext';
 import './ProductDetail.css';
 
 function ProductDetail() {
@@ -20,37 +16,42 @@ function ProductDetail() {
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
+  const { addToCart } = useCart();
+  const [quantity, setQuantity] = useState(1);
+
   // Review & Rating state
   const [ratingType, setRatingType] = useState('stars'); // 'stars' or 'points'
   const [ratingValue, setRatingValue] = useState(0);
   const [hoverValue, setHoverValue] = useState(0); // For star hover effect
   const [comment, setComment] = useState('');
   const [showReviewForm, setShowReviewForm] = useState(false);
+  const [submissionError, setSubmissionError] = useState('');
   const [submitted, setSubmitted] = useState(false);
-  
+  const [hasDelivered, setHasDelivered] = useState(false);
+  const [userReviewStatus, setUserReviewStatus] = useState(null);
+
   // Display data
   const [reviews, setReviews] = useState([]);
   const [averageRating, setAverageRating] = useState(0);
   const [totalRatings, setTotalRatings] = useState(0);
-  
+
   // User info
   const userId = localStorage.getItem('user_id') || localStorage.getItem('user_email');
   const userName = localStorage.getItem('user_name') || 'User';
   const userEmail = localStorage.getItem('user_email') || '';
-  
+
   useEffect(() => {
     fetchProduct();
     loadReviewsAndRatings();
   }, [id]);
-  
+
   const fetchProduct = async () => {
     try {
       setLoading(true);
       const response = await productsAPI.getProducts({});
       const products = response.data || [];
       const foundProduct = products.find(p => p.id === parseInt(id));
-      
+
       if (foundProduct) {
         setProduct(foundProduct);
         setError('');
@@ -64,122 +65,200 @@ function ProductDetail() {
       setLoading(false);
     }
   };
-  
-  const loadReviewsAndRatings = () => {
-    const productId = parseInt(id);
-    const approvedReviews = getApprovedReviews(productId);
-    const ratings = getProductRatings(productId);
-    const avgRating = getAverageRating(productId);
-    
-    setReviews(approvedReviews);
-    setTotalRatings(ratings.length);
-    setAverageRating(parseFloat(avgRating));
-    
-    // Check if user can review - Only if product was purchased AND delivered
-    if (productId && userId) {
-      const hasDelivered = hasDeliveredProduct(userId, productId);
-      const alreadyReviewed = hasReviewedProduct(userId, productId);
-      const alreadyRated = hasRatedProduct(userId, productId);
-      
-      // Show review form only if:
-      // 1. User purchased and received the product (delivered)
-      // 2. User hasn't reviewed yet
-      if (hasDelivered && !alreadyReviewed && !showReviewForm) {
-        setShowReviewForm(true);
-      }
-      
-      // Load user's existing rating if any
-      if (alreadyRated) {
-        const userRating = getUserRating(userId, productId);
-        if (userRating) {
-          setRatingValue(userRating.value);
-          setRatingType(userRating.type || 'stars');
-          setHoverValue(0);
+
+  const loadReviewsAndRatings = async () => {
+    try {
+      const productId = parseInt(id);
+
+      const allCommentsResponse = await productManagerAPI.getComments(null); // Get all
+      const allWebReviews = allCommentsResponse.data?.comments || [];
+
+      // Filter for THIS product
+      const productReviews = allWebReviews.filter(r =>
+        (r.product_id === productId || r.productId === productId || r.product_id === String(productId))
+      );
+
+      // Calculate Stats
+      // Calculate Stats
+      // User requested ALL ratings to be counted instantly (Pending, Approved, Rejected)
+      const activeReviews = productReviews;
+      const totalCount = activeReviews.length;
+      let totalSum = 0;
+      activeReviews.forEach(r => {
+        totalSum += Number(r.rating || 0);
+      });
+
+      const avg = totalCount > 0 ? (totalSum / totalCount).toFixed(1) : 0;
+
+      setTotalRatings(totalCount);
+      setAverageRating(parseFloat(avg));
+
+      // Filter for Display: Only APPROVED status
+      const visibleReviews = productReviews.filter(r => r.status === 'approved');
+
+      const formattedReviews = visibleReviews.map(r => ({
+        id: r.id,
+        userName: r.user_name || r.userName || 'Anonymous',
+        date: r.created_at || r.date,
+        rating: r.rating,
+        comment: r.comment
+      }));
+
+      setReviews(formattedReviews);
+
+      // Review Permission Check
+      if (productId && userId) {
+        // Check "Delivered" status from backend to ensure consistency
+        // local check: const hasDelivered = hasDeliveredProduct(userId, productId);
+        // We will fetch orders for this user and product to check status
+        let backendDelivered = false;
+        try {
+          const ordersResponse = await productManagerAPI.getOrders({
+            email: userEmail,
+            product_id: productId,
+            status: 'delivered'
+          });
+          const userOrders = ordersResponse.data?.orders || [];
+          if (userOrders.length > 0) {
+            backendDelivered = true;
+          }
+        } catch (oErr) {
+          console.error("Error checking orders:", oErr);
+          // Fallback to local if API fails? Or safer to assume false?
+          backendDelivered = hasDeliveredProduct(userId, productId);
+        }
+
+        const hasDelivered = backendDelivered;
+        setHasDelivered(hasDelivered);
+
+        const userReview = productReviews.find(r =>
+          (r.user_id === String(userId) || r.user_id === userId || r.user_email === userEmail)
+        );
+
+        const alreadyReviewed = !!userReview;
+
+        if (hasDelivered && !alreadyReviewed) {
+          setShowReviewForm(true);
+        } else {
+          setShowReviewForm(false);
+        }
+
+
+
+        if (alreadyReviewed) {
+          setRatingValue(userReview.rating);
+          setSubmitted(false); // Do NOT show "submitted" message on load
+          if (userReview) {
+            setUserReviewStatus(userReview.status || 'pending');
+          }
         }
       }
+
+    } catch (err) {
+      console.error('Error loading reviews:', err);
     }
   };
-  
+
   const handleRatingChange = (value) => {
     setRatingValue(value);
-    setHoverValue(0); // Reset hover after selection
-  };
-  
-  const handleSubmitReview = (e) => {
-    e.preventDefault();
-    
-    if (!ratingValue || ratingValue === 0) {
-      alert('Please provide a rating.');
-      return;
-    }
-    
-    if (!comment.trim()) {
-      alert('Please write a comment.');
-      return;
-    }
-    
-    const productId = parseInt(id);
-    
-    // Save rating (immediate, no approval needed)
-    saveRating({
-      userId,
-      userName,
-      userEmail,
-      productId,
-      value: ratingValue,
-      type: ratingType,
-    });
-    
-    // Save review (needs approval)
-    saveReview({
-      userId,
-      userName,
-      userEmail,
-      productId,
-      productName: product?.name || '',
-      comment: comment.trim(),
-      rating: ratingValue, // Store rating with comment for display
-    });
-    
-    setSubmitted(true);
-    setComment('');
-    setRatingValue(0);
     setHoverValue(0);
-    
-    // Reload reviews and ratings
-    setTimeout(() => {
-      loadReviewsAndRatings();
-      setShowReviewForm(false);
-      setSubmitted(false);
-    }, 1500);
   };
-  
+
+  const handleSubmitReview = async (e) => {
+    e.preventDefault();
+    setSubmissionError('');
+
+    if (!ratingValue || ratingValue === 0) {
+      setSubmissionError('Please provide a rating.');
+      return;
+    }
+
+    if (!comment.trim()) {
+      setSubmissionError('Please write a comment.');
+      return;
+    }
+
+    const productId = parseInt(id);
+
+    try {
+      const reviewData = {
+        product_id: productId,
+        product_name: product?.name || '',
+        user_id: userId,
+        user_name: userName,
+        user_email: userEmail,
+        rating: ratingValue,
+        comment: comment.trim()
+      };
+
+      await productManagerAPI.createReview(reviewData);
+
+      setSubmitted(true);
+      setComment('');
+
+      setTimeout(() => {
+        loadReviewsAndRatings();
+        setShowReviewForm(false);
+        setSubmitted(false);
+      }, 1500);
+
+    } catch (err) {
+      console.error('Error submitting review:', err);
+      const errorMessage = err.response?.data?.error || 'Failed to submit review. Please try again.';
+      setSubmissionError(errorMessage);
+    }
+  };
+
+  const handleAddToCart = () => {
+    if (product.quantity_in_stock > 0) {
+      addToCart(product, quantity);
+    }
+  };
+
+  const incrementQuantity = () => {
+    if (quantity < product.quantity_in_stock) {
+      setQuantity(prev => prev + 1);
+    }
+  };
+
+  const decrementQuantity = () => {
+    if (quantity > 1) {
+      setQuantity(prev => prev - 1);
+    }
+  };
+
   const renderStarRating = (value, interactive = false, onChange = null) => {
     const stars = [];
     const maxStars = 5;
-    // Use hoverValue for preview, fallback to actual value
     const displayValue = interactive && hoverValue > 0 ? hoverValue : value;
-    
+
     for (let i = 1; i <= maxStars; i++) {
+      let isFilled = false;
+      let fillPercentage = 0;
+
+      if (interactive) {
+        // Integer based for input
+        isFilled = i <= displayValue;
+        fillPercentage = isFilled ? 100 : 0;
+      } else {
+        // Fractional for display
+        if (value >= i) {
+          fillPercentage = 100;
+          isFilled = true;
+        } else if (value > i - 1) {
+          fillPercentage = (value - (i - 1)) * 100;
+          isFilled = true; // Still marked filled to apply gradient
+        }
+      }
+
       stars.push(
         <span
           key={i}
-          className={`star ${i <= displayValue ? 'filled' : ''} ${interactive ? 'interactive' : ''}`}
-          onClick={() => {
-            if (interactive && onChange) {
-              onChange(i);
-            }
-          }}
-          onMouseEnter={() => {
-            if (interactive) {
-              setHoverValue(i);
-            }
-          }}
-          onMouseLeave={() => {
-            if (interactive) {
-              setHoverValue(0);
-            }
-          }}
+          className={`star ${isFilled ? 'filled' : ''} ${interactive ? 'interactive' : ''}`}
+          style={{ '--percent': `${fillPercentage}%` }}
+          onClick={() => interactive && onChange && onChange(i)}
+          onMouseEnter={() => interactive && setHoverValue(i)}
+          onMouseLeave={() => interactive && setHoverValue(0)}
           title={interactive ? `Rate ${i} star${i > 1 ? 's' : ''}` : ''}
         >
           ★
@@ -188,11 +267,10 @@ function ProductDetail() {
     }
     return <div className="star-rating">{stars}</div>;
   };
-  
+
   const renderPointRating = (value, interactive = false, onChange = null) => {
     const points = [];
     const maxPoints = 10;
-    
     for (let i = 1; i <= maxPoints; i++) {
       points.push(
         <button
@@ -207,229 +285,129 @@ function ProductDetail() {
     }
     return <div className="point-rating">{points}</div>;
   };
-  
-  if (loading) {
-    return (
-      <div className="product-detail-container">
-        <div className="loading">
-          <span>Loading product...</span>
-        </div>
-      </div>
-    );
-  }
-  
-  if (error || !product) {
-    return (
-      <div className="product-detail-container">
-        <div className="error-message">{error || 'Product not found.'}</div>
-        <button onClick={() => navigate('/products')} className="back-button">
-          Back to Products
-        </button>
-      </div>
-    );
-  }
-  
-  // User can only review if:
-  // 1. They are logged in
-  // 2. They purchased the product
-  // 3. The product was delivered
-  const hasDelivered = userId && hasDeliveredProduct(userId, product.id);
+
+  if (loading) return <div className="product-detail-container"><div className="loading"><span>Loading product...</span></div></div>;
+  if (error || !product) return <div className="product-detail-container"><div className="error-message">{error || 'Product not found.'}</div><button onClick={() => navigate('/products')} className="back-button">Back to Products</button></div>;
+
   const alreadyReviewed = userId && hasReviewedProduct(userId, product.id);
   const alreadyRated = userId && hasRatedProduct(userId, product.id);
-  const showReviewSection = hasDelivered && (!alreadyReviewed || !alreadyRated);
-  
+  // Ensure showReviewSection is purely based on 'hasDelivered' and not reviewed. 
+  // But generally we only show form if NOT reviewed.
+  // The user requirement: "If not delivered, show error message".
+
   return (
     <div className="product-detail-container">
-      <button onClick={() => navigate('/products')} className="back-button">
-        ← Back to Products
-      </button>
-      
+      <button onClick={() => navigate('/products')} className="back-button">← Back to Products</button>
+
       <div className="product-detail-content">
         <div className="product-detail-main">
           <div className="product-image-large">
-            <img 
-              src={product.image_url || 'https://via.placeholder.com/500x500?text=Product'} 
-              alt={product.name}
-              onError={(e) => {
-                e.target.src = 'https://via.placeholder.com/500x500?text=Product';
-              }}
-            />
+            <img src={product.image_url || 'https://via.placeholder.com/500x500?text=Product'} alt={product.name} onError={(e) => { e.target.src = 'https://via.placeholder.com/500x500?text=Product'; }} />
           </div>
-          
           <div className="product-info-detail">
             <h1 className="product-title">{product.name}</h1>
             <div className="product-meta">
               <span className="product-category-badge">{product.category}</span>
               {totalRatings > 0 && (
                 <div className="product-rating-summary">
-                  <span className="rating-stars-display">
-                    {renderStarRating(Math.round(averageRating))}
-                  </span>
-                  <span className="rating-text">
-                    {averageRating}/5 ({totalRatings} {totalRatings === 1 ? 'rating' : 'ratings'})
-                  </span>
+                  <span className="rating-stars-display">{renderStarRating(averageRating)}</span>
+                  <span className="rating-text">{averageRating}/5 ({totalRatings} {totalRatings === 1 ? 'rating' : 'ratings'})</span>
                 </div>
               )}
             </div>
-            
             <p className="product-description-full">{product.description}</p>
-            
             <div className="product-details-info">
-              <div className="detail-row">
-                <span className="detail-label">Price:</span>
-                <span className="detail-value price-value">₺{product.price.toFixed(2)}</span>
+              <div className="detail-row"><span className="detail-label">Model:</span><span className="detail-value">{product.model}</span></div>
+              <div className="detail-row"><span className="detail-label">Serial Number:</span><span className="detail-value">{product.serial_number}</span></div>
+              <div className="detail-row"><span className="detail-label">Warranty:</span><span className="detail-value">{product.warranty_status}</span></div>
+              <div className="detail-row"><span className="detail-label">Distributor:</span><span className="detail-value">{product.distributor}</span></div>
+              <div className="detail-row"><span className="detail-label">Price:</span><span className="detail-value price-value">₺{product.price.toFixed(2)}</span></div>
+              <div className="detail-row"><span className="detail-label">In Stock:</span><span className={`detail-value ${product.quantity_in_stock === 0 ? 'out-of-stock' : ''}`}>{product.quantity_in_stock}</span></div>
+            </div>
+            <div className="product-actions" style={{ marginTop: '20px', display: 'flex', gap: '10px', alignItems: 'center' }}>
+              {/* Cart Logic Same as Before */}
+              <div className="quantity-selector" style={{ display: 'flex', alignItems: 'center', border: '1px solid #ddd', borderRadius: '4px' }}>
+                <button onClick={decrementQuantity} style={{ padding: '5px 10px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem' }} disabled={quantity <= 1}>−</button>
+                <input type="number" value={quantity} readOnly style={{ width: '40px', textAlign: 'center', border: 'none', fontSize: '1rem', MozAppearance: 'textfield' }} />
+                <button onClick={incrementQuantity} style={{ padding: '5px 10px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem' }} disabled={quantity >= product.quantity_in_stock}>+</button>
               </div>
-              {product.quantity_in_stock !== undefined && (
-                <div className="detail-row">
-                  <span className="detail-label">In Stock:</span>
-                  <span className={`detail-value ${product.quantity_in_stock === 0 ? 'out-of-stock' : ''}`}>
-                    {product.quantity_in_stock}
-                  </span>
-                </div>
-              )}
+              <button className="add-to-cart-button" onClick={handleAddToCart} style={{ padding: '10px 20px', backgroundColor: '#4a90e2', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1rem' }}>Add to Cart</button>
             </div>
           </div>
         </div>
-        
-        {/* Reviews & Ratings Section */}
+
         <div className="reviews-section">
           <h2>Reviews & Ratings</h2>
-          
-          {/* Average Rating Display */}
           {totalRatings > 0 ? (
             <div className="average-rating-display">
-              <div className="avg-rating-main">
-                <span className="avg-rating-value">{averageRating}</span>
-                <span className="avg-rating-max">/5</span>
-              </div>
-              <div className="avg-rating-stars">
-                {renderStarRating(Math.round(averageRating))}
-              </div>
-              <p className="avg-rating-count">{totalRatings} {totalRatings === 1 ? 'rating' : 'ratings'}</p>
+              <div className="avg-rating-main"><span className="avg-rating-value">{averageRating}</span><span className="avg-rating-max">/5</span></div>
+              <div className="avg-rating-stars">{renderStarRating(averageRating)}</div>
+              <p className="avg-rating-count">{totalRatings} ratings</p>
             </div>
-          ) : (
-            <p className="no-ratings">No ratings yet. Be the first to rate!</p>
-          )}
-          
-          {/* Review Form */}
-          {showReviewSection && !submitted && (
+          ) : (<p className="no-ratings">No ratings yet.</p>)}
+
+          {/* Logic for showing form or error message */}
+          {hasDelivered && !alreadyReviewed && !submitted && (
             <div className="review-form-container">
               <h3>Write a Review</h3>
               <form onSubmit={handleSubmitReview} className="review-form">
                 <div className="rating-type-selector">
-                  <label className={ratingType === 'stars' ? 'selected' : ''}>
-                    <input
-                      type="radio"
-                      value="stars"
-                      checked={ratingType === 'stars'}
-                      onChange={(e) => {
-                        setRatingType(e.target.value);
-                        setRatingValue(0);
-                        setHoverValue(0);
-                      }}
-                    />
-                    <span>⭐ Rate with Stars (1-5)</span>
-                  </label>
-                  <label className={ratingType === 'points' ? 'selected' : ''}>
-                    <input
-                      type="radio"
-                      value="points"
-                      checked={ratingType === 'points'}
-                      onChange={(e) => {
-                        setRatingType(e.target.value);
-                        setRatingValue(0);
-                        setHoverValue(0);
-                      }}
-                    />
-                    <span>🔢 Rate with Points (1-10)</span>
-                  </label>
+                  <label><input type="radio" value="stars" checked={ratingType === 'stars'} onChange={(e) => { setRatingType(e.target.value); setRatingValue(0); }} /> ⭐ Stars</label>
+                  <label><input type="radio" value="points" checked={ratingType === 'points'} onChange={(e) => { setRatingType(e.target.value); setRatingValue(0); }} /> 🔢 Points</label>
                 </div>
-                
                 <div className="rating-input">
                   <label>Your Rating:</label>
-                  {ratingType === 'stars' ? (
-                    <div className="rating-display">
-                      {renderStarRating(ratingValue, true, handleRatingChange)}
-                      <span className="rating-value-text">
-                        {ratingValue > 0 ? `${ratingValue}/5` : 'Select rating'}
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="rating-display">
-                      {renderPointRating(ratingValue, true, handleRatingChange)}
-                      <span className="rating-value-text">
-                        {ratingValue > 0 ? `${ratingValue}/10` : 'Select rating'}
-                      </span>
-                    </div>
-                  )}
+                  <div className="rating-display">
+                    {ratingType === 'stars' ? renderStarRating(ratingValue, true, handleRatingChange) : renderPointRating(ratingValue, true, handleRatingChange)}
+                    <span className="rating-value-text">{ratingValue > 0 ? `${ratingValue}/${ratingType === 'stars' ? 5 : 10}` : 'Select rating'}</span>
+                  </div>
                 </div>
-                
                 <div className="comment-input">
                   <label htmlFor="comment">Your Comment:</label>
-                  <textarea
-                    id="comment"
-                    value={comment}
-                    onChange={(e) => setComment(e.target.value)}
-                    placeholder="Share your experience with this product..."
-                    rows="5"
-                    required
-                  />
+                  <textarea id="comment" value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Share your experience..." rows="5" required />
                   <small>Note: Your comment will be reviewed by a product manager before being published.</small>
                 </div>
-                
-                <button type="submit" className="submit-review-btn">
-                  Submit Review
-                </button>
+                {submissionError && <div className="error-message" style={{ color: 'red', marginTop: '10px' }}>{submissionError}</div>}
+                <button type="submit" className="submit-review-btn">Submit Review</button>
               </form>
             </div>
           )}
-          
+
           {submitted && (
             <div className="review-submitted-message">
               <p>✓ Your rating has been submitted!</p>
               <p>Your comment is pending approval and will be visible after review.</p>
             </div>
           )}
-          
-          {alreadyReviewed && (
+
+          {alreadyReviewed && !submitted && (
             <div className="already-reviewed-message">
-              <p>You have already reviewed this product. Thank you!</p>
+              <p>You have already reviewed this product.</p>
+              {userReviewStatus === 'pending' && <p><em>Status: Pending Approval</em></p>}
+              {userReviewStatus === 'approved' && <p><em>Status: Approved</em></p>}
             </div>
           )}
-          
+
+          {/* Strict Message if NOT delivered */}
           {userId && !hasDelivered && (
-            <div className="cannot-review-message">
-              <p>⚠️ You can only rate and comment on products that you have purchased and received. Please wait until your order is delivered.</p>
+            <div className="cannot-review-message" style={{ marginTop: '20px', padding: '15px', backgroundColor: '#fff3cd', border: '1px solid #ffeeba', borderRadius: '4px', color: '#856404' }}>
+              <p>⚠️ <strong>Cannot Review:</strong> You can only rate and comment on products that you have personally purchased and received. Please wait until your order is delivered.</p>
             </div>
           )}
-          
+
           {!userId && (
-            <div className="login-required-message">
-              <p>Please <button onClick={() => navigate('/login')} className="link-button">log in</button> to review products.</p>
-            </div>
+            <div className="login-required-message"><p>Please <button onClick={() => navigate('/login')} className="link-button">log in</button> to review products.</p></div>
           )}
-          
-          {/* Approved Reviews List */}
+
           <div className="reviews-list">
             <h3>Customer Reviews ({reviews.length})</h3>
-            {reviews.length === 0 ? (
-              <p className="no-reviews">No approved reviews yet.</p>
-            ) : (
-              reviews.map((review) => (
-                <div key={review.id} className="review-item">
-                  <div className="review-header">
-                    <span className="reviewer-name">{review.userName || 'Anonymous'}</span>
-                    <span className="review-date">
-                      {new Date(review.date).toLocaleDateString()}
-                    </span>
-                  </div>
-                  <div className="review-rating">
-                    {review.rating && renderStarRating(review.rating)}
-                  </div>
-                  <p className="review-comment">{review.comment}</p>
-                </div>
-              ))
-            )}
+            {reviews.length === 0 ? <p className="no-reviews">No approved reviews yet.</p> : reviews.map((review) => (
+              <div key={review.id} className="review-item">
+                <div className="review-header"><span className="reviewer-name">{review.userName}</span><span className="review-date">{new Date(review.date).toLocaleDateString()}</span></div>
+                <div className="review-rating">{review.rating && renderStarRating(review.rating)}</div>
+                <p className="review-comment">{review.comment}</p>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -438,4 +416,3 @@ function ProductDetail() {
 }
 
 export default ProductDetail;
-

@@ -1,57 +1,93 @@
-// Cart.jsx
+// Cart.jsx - Cart Page
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "../context/CartContext";
 import { saveOrder } from "./reviewUtils";
 import "./Cart.css";
 import PaymentMockFlow from "./PaymentMockFlow";
 
-export default function Cart() {
-  const { cartItems, removeFromCart, updateQuantity } = useCart();
+function Cart() {
   const navigate = useNavigate();
+  const isAuthenticated = localStorage.getItem('is_authenticated');
+  const userEmail = localStorage.getItem('user_email');
+  const userName = localStorage.getItem('user_name');
 
-  const isAuthenticated = localStorage.getItem("is_authenticated");
-  const userEmail = localStorage.getItem("user_email");
-  const userName = localStorage.getItem("user_name");
+  // Use Global Cart Context
+  const { cartItems, updateQuantity, removeFromCart, clearCart } = useCart();
 
+  // Payment flow state
   const [showPayment, setShowPayment] = useState(false);
   const [orderId, setOrderId] = useState(null);
 
-  const calculateTotal = () => {
-    return cartItems.reduce(
-      (sum, item) => sum + (item.price || 0) * (item.quantity || 1),
+  // Calculate totals derived from context data
+  const calculateTotal = (items) => {
+    return items.reduce(
+      (sum, item) => sum + item.price * item.quantity,
       0
     );
   };
+
+  const total = calculateTotal(cartItems);
 
   const calculateTotalQuantity = () => {
     return cartItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
   };
 
-  const subtotal = calculateTotal();
   const totalQuantity = calculateTotalQuantity();
+
+  const handleUpdateQuantity = (id, newQuantity) => {
+    updateQuantity(id, newQuantity);
+  };
+
+  const handleRemoveItem = (id) => {
+    removeFromCart(id);
+  };
+
+  const taxRate = 0.18;
   const shipping = 0;
-  const total = subtotal + shipping;
+  const invoiceTotal = total + shipping;
+  const invoiceSubtotal = invoiceTotal / (1 + taxRate);
+  const invoiceTax = invoiceTotal - invoiceSubtotal;
 
-  
+  const invoiceOrder = {
+    id: orderId || 'PENDING',
+    date: new Date().toISOString().slice(0, 10),
+    customerName: userName || userEmail || 'Guest',
+    paymentMethod: 'Credit Card',
+    address: {
+      line1: 'Sabancı University',
+      line2: '',
+      city: 'Istanbul',
+      zip: '34956',
+      country: 'Turkey',
+    },
+    items: cartItems.map((item) => ({
+      name: item.name,
+      quantity: item.quantity || 1,
+      price: item.price || 0,
+    })),
+    subtotal: invoiceSubtotal,
+    tax: invoiceTax,
+    total: invoiceTotal,
+    totalQuantity,
+  };
+
   const handleCheckout = () => {
-    if (isAuthenticated) {
-      setShowPayment(true);
+    if (!isAuthenticated) {
+      navigate('/login');
     } else {
-
-      navigate("/login");
+      setShowPayment(true);
     }
   };
 
+  // When payment is successful
   const handlePaymentSuccess = (newOrderId) => {
     setOrderId(newOrderId);
-    
-    // Save order to localStorage for review/rating functionality
+
     if (isAuthenticated && cartItems.length > 0) {
       const userId = localStorage.getItem('user_id') || userEmail;
-      // For testing purposes, set status to 'delivered' so users can review products immediately
-      // In production, this would be updated by an admin or delivery system
+
       const order = saveOrder({
         id: newOrderId,
         userId: userId,
@@ -65,128 +101,105 @@ export default function Cart() {
         })),
         total: total,
         currency: 'TRY',
-        status: 'delivered', // Set to 'delivered' so users can review products immediately
+        status: 'delivered',
         deliveryAddress: localStorage.getItem('user_address') || '',
       });
       console.log('Order saved:', order);
     }
+
+    clearCart();
+    // Context handles storage cleanup via cleanCart
+
+    setShowPayment(false);
+    setTimeout(() => {
+      navigate('/profile');
+    }, 100);
   };
 
   const handlePaymentCancel = () => {
-    setShowPayment(false);
+    if (orderId) {
+      navigate('/profile');
+    } else {
+      setShowPayment(false);
+    }
   };
 
   return (
     <div className="cart-container">
       <div className="cart-header">
         <h1>My Cart 🛒</h1>
-        
-        {/* DEĞİŞİKLİK 4: Koşullu selamlama eklendi */}
-        {isAuthenticated ? (
-          <p>Hello, {userName || userEmail}!</p>
-        ) : (
-          <p>Hello, Guest! Please log in to check out.</p>
-        )}
-
-        {cartItems.length > 0 && (
-          <p>You have {totalQuantity} item(s) in your cart.</p>
-        )}
+        <p>Hello, {userName || userEmail || 'Guest'}!</p>
       </div>
 
       {cartItems.length === 0 ? (
         <div className="empty-cart">
           <div className="empty-cart-icon">🛒</div>
           <h2>Your cart is empty</h2>
-          <p>You haven't added any items yet.</p>
-          <Link to="/products">
-            <button className="shop-button">Start Shopping</button>
-          </Link>
+          <p>You haven't added any products yet.</p>
+          <button
+            onClick={() => navigate('/products')}
+            className="shop-button"
+          >
+            Start Shopping
+          </button>
         </div>
       ) : (
         <div className="cart-content">
           <div className="cart-items">
-            {cartItems.map((item) => {
-              const quantity = item.quantity || 1;
-              const maxQuantity = item.maxQuantity;
-              const reachedStockLimit =
-                typeof maxQuantity === "number" &&
-                maxQuantity > 0 &&
-                quantity >= maxQuantity;
-
-              return (
-                <div key={item.id} className="cart-item">
+            {cartItems.map((item) => (
+              <div key={item.id} className="cart-item">
                 <div className="cart-item-image">
                   <img
-                    src={
-                      item.image_url ||
-                      "https://via.placeholder.com/100x100?text=Product"
-                    }
+                    src={item.image_url || 'https://via.placeholder.com/100x100?text=Product'}
                     alt={item.name}
+                    className="item-img-cart"
                     onError={(e) => {
-                      e.target.src =
-                        "https://via.placeholder.com/100x100?text=Product";
+                      e.target.src = 'https://via.placeholder.com/100x100?text=Product';
                     }}
                   />
                 </div>
                 <div className="cart-item-details">
                   <h3>{item.name}</h3>
-                  <p className="item-price">
-                    ₺{(item.price || 0).toFixed(2)}
-                  </p>
+                  <p className="item-price">₺{item.price.toFixed(2)}</p>
                 </div>
                 <div className="cart-item-controls">
                   <div className="quantity-controls">
                     <button
                       onClick={() =>
-                        updateQuantity(item.id, quantity - 1)
+                        handleUpdateQuantity(item.id, item.quantity - 1)
                       }
                       className="quantity-btn"
                     >
                       -
                     </button>
-                    <span className="quantity">{quantity}</span>
+                    <span className="quantity">{item.quantity}</span>
                     <button
                       onClick={() =>
-                        updateQuantity(item.id, quantity + 1)
+                        handleUpdateQuantity(item.id, item.quantity + 1)
                       }
                       className="quantity-btn"
-                      disabled={reachedStockLimit}
-                      title={
-                        reachedStockLimit
-                          ? "You already have the maximum available stock for this item"
-                          : "Increase quantity"
-                      }
                     >
                       +
                     </button>
                   </div>
-                  {reachedStockLimit && (
-                    <span className="stock-limit-note">
-                      Maximum available stock added
-                    </span>
-                  )}
                   <button
-                    onClick={() => removeFromCart(item.id)}
+                    onClick={() => handleRemoveItem(item.id)}
                     className="remove-btn"
                   >
                     🗑️ Remove
                   </button>
                 </div>
                 <div className="cart-item-total">
-                  <strong>
-                    ₺{((item.price || 0) * quantity).toFixed(2)}
-                  </strong>
+                  <strong>₺{(item.price * item.quantity).toFixed(2)}</strong>
                 </div>
-                </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
 
           <div className="cart-summary">
-            {/* ... (Özet kısmı değişmedi) ... */}
             <div className="summary-row">
               <span>Subtotal:</span>
-              <span>₺{subtotal.toFixed(2)}</span>
+              <span>₺{total.toFixed(2)}</span>
             </div>
             <div className="summary-row">
               <span>Shipping:</span>
@@ -194,32 +207,35 @@ export default function Cart() {
             </div>
             <div className="summary-row total-row">
               <span>Total:</span>
-              <strong>₺{total.toFixed(2)}</strong>
+              <strong>₺{(total + shipping).toFixed(2)}</strong>
             </div>
 
-            {/* DEĞİŞİKLİK 5: Buton metni koşullu hale getirildi */}
-            {/* handleCheckout fonksiyonu zaten güncellendiği için
-                bu buton artık doğru şekilde çalışacak. */}
             <button onClick={handleCheckout} className="checkout-button">
-              {isAuthenticated ? "Proceed to Payment" : "Login to Continue"}
+              {"Proceed to Payment"}
             </button>
 
-            <Link to="/products">
-              <button className="continue-shopping">Continue Shopping</button>
-            </Link>
+            <button
+              onClick={() => navigate('/products')}
+              className="continue-shopping"
+            >
+              Continue Shopping
+            </button>
           </div>
         </div>
       )}
 
-      {/* Ödeme Modalı (Sadece isAuthenticated true ise açılacak) */}
       {showPayment && (
         <PaymentMockFlow
-          amount={total}
+          amount={invoiceTotal}
           currency="TRY"
+          cartItems={cartItems}
           onSuccess={handlePaymentSuccess}
           onCancel={handlePaymentCancel}
+          order={invoiceOrder}
         />
       )}
     </div>
   );
 }
+
+export default Cart;

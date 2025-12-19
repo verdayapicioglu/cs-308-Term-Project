@@ -1,8 +1,77 @@
-import React from "react";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import "./Menubar.css";
+import { clearUserData } from "./api";
 
-export default function Menubar({ user, onLogout }) {
+export default function Menubar() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [userEmail, setUserEmail] = useState("");
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Check authentication status on mount and when location changes
+  useEffect(() => {
+    const checkAuth = () => {
+      const authStatus = localStorage.getItem("is_authenticated") === "true";
+      const adminStatus = localStorage.getItem("is_admin") === "true" || 
+                          localStorage.getItem("is_staff") === "true" || 
+                          localStorage.getItem("is_superuser") === "true";
+      const email = localStorage.getItem("user_email") || "";
+
+      setIsAuthenticated(authStatus);
+      setIsAdmin(adminStatus);
+      setUserEmail(email);
+    };
+    
+    // Check immediately
+    checkAuth();
+  }, [location]);
+
+  // Listen for storage changes (when user logs in/out in another tab)
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const authStatus = localStorage.getItem("is_authenticated") === "true";
+      const adminStatus = localStorage.getItem("is_admin") === "true" || 
+                          localStorage.getItem("is_staff") === "true" || 
+                          localStorage.getItem("is_superuser") === "true";
+      const email = localStorage.getItem("user_email") || "";
+
+      setIsAuthenticated(authStatus);
+      setIsAdmin(adminStatus);
+      setUserEmail(email);
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    // Also check on focus (in case login happened in same tab)
+    window.addEventListener("focus", handleStorageChange);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("focus", handleStorageChange);
+    };
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      // Clear localStorage
+      clearUserData();
+      setIsAuthenticated(false);
+      setIsAdmin(false);
+      setUserEmail("");
+      // Navigate to login
+      navigate("/login");
+    } catch (error) {
+      console.error("Logout error:", error);
+      // Still clear local data even if API call fails
+      clearUserData();
+      setIsAuthenticated(false);
+      setIsAdmin(false);
+      setUserEmail("");
+      navigate("/login");
+    }
+  };
+
   return (
     <nav className="menubar">
       <div className="logo">
@@ -15,13 +84,18 @@ export default function Menubar({ user, onLogout }) {
         <Link to="/about">About Us</Link>
         <Link to="/cart">Cart</Link>
         <Link to="/profile">Profile</Link>
-        <Link to="/product-manager/comments">Comment Approval</Link>
+        {isAdmin && (
+          <>
+            <Link to="/product-manager/comments">Comment Approval</Link>
+            <Link to="/delivery/dashboard">Delivery Dashboard</Link>
+          </>
+        )}
       </div>
       <div className="user-section">
-        {user ? (
+        {isAuthenticated ? (
           <>
-            <span className="user-email">{user.email}</span>
-            <button className="logout-btn" onClick={onLogout}>
+            <span className="user-email">{userEmail}</span>
+            <button className="logout-btn" onClick={handleLogout}>
               Logout
             </button>
           </>

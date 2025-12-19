@@ -11,6 +11,7 @@
     opacity: 0;
     transform: translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -57,6 +58,7 @@
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -405,10 +407,16 @@
   cursor: default;
   transition: all 0.2s ease;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  display: inline-block;
+  position: relative;
 }
 
 .star.filled {
-  color: #ffc107;
+  background: linear-gradient(90deg, #ffc107 var(--percent, 100%), #e2e8f0 var(--percent, 100%));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
   filter: drop-shadow(0 2px 4px rgba(255, 193, 7, 0.4));
   transform: scale(1.1);
 }
@@ -554,6 +562,7 @@
     opacity: 0;
     transform: translateY(-10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -709,77 +718,77 @@
   .product-detail-container {
     padding: 15px;
   }
-  
+
   .product-detail-content {
     padding: 20px;
   }
-  
+
   .product-detail-main {
     grid-template-columns: 1fr;
     gap: 30px;
   }
-  
+
   .product-image-large {
     height: 350px;
   }
-  
+
   .product-title {
     font-size: 28px;
   }
-  
+
   .product-description-full {
     font-size: 15px;
     padding: 15px;
   }
-  
+
   .price-value {
     font-size: 28px;
   }
-  
+
   .rating-type-selector {
     flex-direction: column;
     gap: 12px;
   }
-  
+
   .rating-type-selector label {
     width: 100%;
   }
-  
+
   .point-rating {
     gap: 6px;
     justify-content: center;
   }
-  
+
   .point-btn {
     width: 40px;
     height: 40px;
     font-size: 14px;
   }
-  
+
   .star-rating {
     justify-content: center;
   }
-  
+
   .star {
     font-size: 28px;
   }
-  
+
   .avg-rating-value {
     font-size: 42px;
   }
-  
+
   .reviews-section h2 {
     font-size: 26px;
   }
-  
+
   .review-form-container {
     padding: 25px;
   }
-  
+
   .review-form-container h3 {
     font-size: 20px;
   }
-  
+
   .back-button {
     width: 100%;
     justify-content: center;
@@ -790,37 +799,36 @@
   .product-detail-container {
     padding: 10px;
   }
-  
+
   .product-detail-content {
     padding: 15px;
     border-radius: 12px;
   }
-  
+
   .product-image-large {
     height: 280px;
   }
-  
+
   .product-title {
     font-size: 24px;
   }
-  
+
   .point-btn {
     width: 35px;
     height: 35px;
     font-size: 12px;
   }
-  
+
   .star {
     font-size: 24px;
   }
-  
+
   .avg-rating-value {
     font-size: 36px;
   }
-  
+
   .submit-review-btn {
     width: 100%;
     padding: 12px;
   }
 }
-

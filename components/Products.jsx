@@ -18,17 +18,15 @@ export default function Products({ showFilters = true, limit = null }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("");
-  const [sortBy, setSortBy] = useState("");
   const [searchParams, setSearchParams] = useSearchParams();
+  const [selectedCategory, setSelectedCategory] = useState(searchParams.get("category") || "");
+  const [sortBy, setSortBy] = useState("");
 
-  // Get category from URL params (only if showFilters is true)
+  // Sync category state with URL params
   useEffect(() => {
     if (showFilters) {
       const categoryParam = searchParams.get("category");
-      if (categoryParam) {
-        setSelectedCategory(categoryParam);
-      }
+      setSelectedCategory(categoryParam || "");
     }
   }, [searchParams, showFilters]);
 
@@ -84,18 +82,12 @@ export default function Products({ showFilters = true, limit = null }) {
     setSearchParams({});
   };
 
-  if (loading) {
-    return <div className="products-page">Loading…</div>;
-  }
 
-  if (error) {
-    return <div className="products-page">{error}</div>;
-  }
 
   return (
     <div className={showFilters ? "products-page" : ""}>
       {showFilters && <h1>Our Products</h1>}
-      
+
       {showFilters && (
         <div className="products-filters">
           <form onSubmit={handleSearch} className="search-form">
@@ -129,6 +121,7 @@ export default function Products({ showFilters = true, limit = null }) {
             >
               <option value="">Sort by...</option>
               <option value="price">Price: Low to High</option>
+              <option value="price-desc">Price: High to Low</option>
               <option value="popularity">Popularity</option>
             </select>
 
@@ -139,7 +132,11 @@ export default function Products({ showFilters = true, limit = null }) {
         </div>
       )}
 
-      {items.length === 0 ? (
+      {loading ? (
+        <div className="no-products">Loading…</div>
+      ) : error ? (
+        <div className="no-products">{error}</div>
+      ) : items.length === 0 ? (
         <div className="no-products">No products found.</div>
       ) : (
         <>

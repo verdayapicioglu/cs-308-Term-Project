@@ -7,6 +7,7 @@ from . import views
 urlpatterns = [
     # Dashboard
     path('dashboard/stats/', views.dashboard_stats, name='dashboard_stats'),
+    path('delivery/dashboard/stats/', views.delivery_dashboard_stats, name='delivery_dashboard_stats'),
     
     # Product Management
     path('products/', views.product_list_create, name='product_list_create'),
@@ -27,6 +28,7 @@ urlpatterns = [
     
     # Comment Approval
     path('comments/', views.comment_list, name='comment_list'),
+    path('comments/create/', views.review_create, name='review_create'),
     path('comments/<int:comment_id>/approve/', views.comment_approve, name='comment_approve'),
 ]
 
