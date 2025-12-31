@@ -4,14 +4,7 @@ import ProductCard from "./ProductCard";
 import "./Products.css";
 import { productsAPI } from "../product_manager_api";
 
-const CATEGORIES = [
-  "Food",
-  "Collars & Leashes",
-  "Food & Water Bowls",
-  "Toys",
-  "Grooming & Hygiene",
-  "Treats & Snacks",
-];
+
 
 export default function Products({ showFilters = true, limit = null }) {
   const [items, setItems] = useState([]);
@@ -29,6 +22,20 @@ export default function Products({ showFilters = true, limit = null }) {
       setSelectedCategory(categoryParam || "");
     }
   }, [searchParams, showFilters]);
+
+  const [categories, setCategories] = useState([]);
+
+  useEffect(() => {
+    async function fetchCategories() {
+      try {
+        const response = await productsAPI.getCategories();
+        setCategories(response?.data || []);
+      } catch (err) {
+        console.error("Error loading categories", err);
+      }
+    }
+    fetchCategories();
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -82,8 +89,6 @@ export default function Products({ showFilters = true, limit = null }) {
     setSearchParams({});
   };
 
-
-
   return (
     <div className={showFilters ? "products-page" : ""}>
       {showFilters && <h1>Our Products</h1>}
@@ -107,7 +112,7 @@ export default function Products({ showFilters = true, limit = null }) {
               className="filter-select"
             >
               <option value="">All Categories</option>
-              {CATEGORIES.map((cat) => (
+              {categories.map((cat) => (
                 <option key={cat} value={cat}>
                   {cat}
                 </option>

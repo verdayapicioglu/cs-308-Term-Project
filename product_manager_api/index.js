@@ -31,5 +31,18 @@ export const productsAPI = {
       return { data: [] };
     }
   },
+  async getCategories() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/categories/`);
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.statusText}`);
+      }
+      const result = await response.json();
+      return { data: result.categories || [] };
+    } catch (error) {
+      console.error("Failed to fetch categories:", error);
+      return { data: [] };
+    }
+  },
 };
 

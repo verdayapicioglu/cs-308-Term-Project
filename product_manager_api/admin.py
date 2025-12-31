@@ -61,7 +61,12 @@ class OrderItemInline(admin.TabularInline):
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ('delivery_id', 'customer_name', 'total_price', 'status', 'order_date')
+    list_display = ('display_delivery_id', 'customer_name', 'total_price', 'status', 'order_date')
+    
+    def display_delivery_id(self, obj):
+        return obj.delivery_id
+    display_delivery_id.short_description = 'Order ID'
+    display_delivery_id.admin_order_field = 'delivery_id'
     list_filter = ('status', 'order_date', 'delivery_date')
     search_fields = ('delivery_id', 'customer_name', 'customer_email', 'delivery_address')
     readonly_fields = ('created_at', 'updated_at')
@@ -115,7 +120,7 @@ class ReviewAdmin(admin.ModelAdmin):
 
 @admin.register(Delivery)
 class DeliveryAdmin(admin.ModelAdmin):
-    list_display = ('id', 'order_link', 'customer_id', 'product', 'quantity', 'total_price', 'is_completed', 'created_at')
+    list_display = ('id', 'order_link', 'customer_id', 'product', 'quantity', 'total_price', 'is_completed', 'delivery_address', 'created_at')
     list_filter = ('is_completed', 'created_at')
     search_fields = ('order__delivery_id', 'customer__username', 'product__name', 'delivery_address')
     readonly_fields = ('created_at', 'updated_at')

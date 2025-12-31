@@ -174,7 +174,7 @@ def product_list_create(request):
         
         # Apply filtering
         if category_filter:
-            products_queryset = products_queryset.filter(category=category_filter)
+            products_queryset = products_queryset.filter(category__name=category_filter)
             
         if search_query:
             # Case-insensitive search on name and description
