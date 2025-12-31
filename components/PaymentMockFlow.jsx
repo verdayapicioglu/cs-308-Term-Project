@@ -16,7 +16,7 @@ export default function PaymentMockFlow({
   const navigate = useNavigate();
   const { setNotification } = useCart();
   const [step, setStep] = useState("card");
-  const [cardName, setCardName] = useState("");
+  const [cardName, setCardName] = useState(localStorage.getItem('user_name') || "");
   const [cardNumber, setCardNumber] = useState("");
   const [expiry, setExpiry] = useState("");
   const [cvv, setCvv] = useState("");
