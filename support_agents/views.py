@@ -33,8 +33,14 @@ def is_support_agent(user):
 def create_conversation(request):
     """Create a new support conversation (customer or guest)"""
     try:
-        user = request.user if request.user.is_authenticated else None
         guest_session_id = request.data.get('guest_session_id')
+        
+        # CRITICAL: If guest_session_id is explicitly provided, treat as guest user
+        # This handles logout cases where session cookie might still be valid
+        if guest_session_id:
+            user = None  # Force guest conversation when guest_session_id is provided
+        else:
+            user = request.user if request.user.is_authenticated else None
         
         # Generate guest session ID if not provided and user is not authenticated
         if not user and not guest_session_id:
@@ -231,7 +237,7 @@ def get_customer_details(request, conversation_id):
         # Get cart items
         cart_items = []
         try:
-            cart = Cart.objects.get(user=customer)
+            cart, created = Cart.objects.get_or_create(user=customer)
             cart_items_obj = cart.items.all()
             cart_items = [{
                 'product_id': item.product_id,
@@ -240,7 +246,7 @@ def get_customer_details(request, conversation_id):
                 'price': float(item.price),
                 'image_url': item.image_url
             } for item in cart_items_obj]
-        except Cart.DoesNotExist:
+        except Exception as e:
             pass
 
         # Get wishlist items
@@ -258,6 +264,9 @@ def get_customer_details(request, conversation_id):
         except Wishlist.DoesNotExist:
             pass
 
+        # Calculate total cart quantity (sum of all item quantities)
+        total_cart_quantity = sum(item['quantity'] for item in cart_items)
+        
         data = {
             'user_id': customer.id,
             'username': customer.username,
@@ -266,7 +275,7 @@ def get_customer_details(request, conversation_id):
             'cart_items': cart_items,
             'wishlist_items': wishlist_items,
             'order_count': ApiOrder.objects.filter(user=customer).count() + PMOrder.objects.filter(customer_email=customer.email).count(),
-            'cart_item_count': len(cart_items),
+            'cart_item_count': total_cart_quantity,  # Total quantity, not unique item count
             'wishlist_item_count': len(wishlist_items)
         }
 

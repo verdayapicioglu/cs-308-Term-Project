@@ -159,8 +159,17 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     if conversation_with_agent['agent_id'] == self.user.id:
                         is_from_agent = True
 
-            # Create message synchronously - pass conversation ID and user ID
-            user_id = self.user.id if (self.user and self.user.is_authenticated) else None
+            # CRITICAL: Use conversation's customer field, not self.user
+            # If conversation.customer is None (guest conversation), user_id should be None
+            # This ensures logout users sending messages are treated as guests
+            conversation_with_customer = await self._get_conversation_with_customer(conversation.id)
+            
+            if conversation_with_customer and conversation_with_customer.get('customer_id'):
+                user_id = conversation_with_customer['customer_id']
+            else:
+                # Guest conversation - no user_id
+                user_id = None
+            
             message = await self._create_message_sync(conversation.id, user_id, is_from_agent, content)
             return message
         except Exception as e:
@@ -177,6 +186,18 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return {
                 'id': conversation.id,
                 'agent_id': conversation.agent.id if conversation.agent else None
+            }
+        except Conversation.DoesNotExist:
+            return None
+    
+    @database_sync_to_async
+    def _get_conversation_with_customer(self, conversation_id):
+        """Get conversation with customer ID"""
+        try:
+            conversation = Conversation.objects.select_related('customer').get(id=conversation_id)
+            return {
+                'id': conversation.id,
+                'customer_id': conversation.customer.id if conversation.customer else None
             }
         except Conversation.DoesNotExist:
             return None

@@ -9,11 +9,11 @@ function SupportChat() {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [ws, setWs] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const wasAuthenticatedRef = useRef(false);
+  const wsRef = useRef(null); // Use ref to always have current WebSocket
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -37,9 +37,9 @@ function SupportChat() {
       // When chat closes, clear everything
       setConversationId(null);
       setMessages([]);
-      if (ws) {
-        ws.close();
-        setWs(null);
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
       }
     }
   }, [isOpen]);
@@ -47,124 +47,26 @@ function SupportChat() {
 
   // WebSocket connection
   useEffect(() => {
-    if (conversationId && isOpen) {
-      connectWebSocket();
-      return () => {
-        if (ws) {
-          ws.close();
-        }
-      };
-    }
-  }, [conversationId, isOpen]);
-
-  // Track authentication status on mount
-  useEffect(() => {
-    const wasAuthenticated = localStorage.getItem('is_authenticated') === 'true';
-    wasAuthenticatedRef.current = wasAuthenticated;
-  }, []);
-
-  // Close chat on logout (only when transitioning from authenticated to unauthenticated)
-  useEffect(() => {
-    const checkAuthStatus = () => {
-      const isAuthenticated = localStorage.getItem('is_authenticated') === 'true';
-      const wasAuthenticated = wasAuthenticatedRef.current;
-
-      // Only close chat if user was authenticated and now is not (logout happened)
-      if (wasAuthenticated && !isAuthenticated) {
-        // User logged out, close chat and disconnect completely
-        if (ws) {
-          ws.close();
-          setWs(null);
-        }
-        setIsOpen(false);
-        setConversationId(null);
-        setMessages([]);
-        setInputMessage('');
+    if (!conversationId || !isOpen) {
+      // Close WebSocket if conversationId is cleared or chat is closed
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
         setIsConnected(false);
-        setIsTyping(false);
-        // Clear guest session ID so new conversation is created for guest user
-        sessionStorage.removeItem('guest_session_id');
       }
-      
-      // Always clear conversation if user is not authenticated (prevent showing old messages)
-      if (!isAuthenticated && conversationId) {
-        setConversationId(null);
-        setMessages([]);
-        if (ws) {
-          ws.close();
-          setWs(null);
-        }
-        setIsConnected(false);
-        setIsTyping(false);
-      }
-
-      // Update ref for next check
-      wasAuthenticatedRef.current = isAuthenticated;
-    };
-
-    // Listen for storage changes (logout)
-    const handleStorageChange = (e) => {
-      if (e.key === 'is_authenticated' || e.key === null) {
-        checkAuthStatus();
-      }
-    };
-
-    // Listen for focus (in case logout happened in same tab)
-    const handleFocus = () => {
-      checkAuthStatus();
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('focus', handleFocus);
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('focus', handleFocus);
-    };
-  }, [isOpen, ws]);
-
-  const createConversation = async () => {
-    try {
-      const userId = localStorage.getItem('user_id');
-      const guestSessionId = !userId ? getOrCreateSessionId() : null;
-
-      // Always create a fresh conversation - don't reuse old ones
-      const response = await fetch(`${API_BASE_URL}/conversations/create/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          guest_session_id: guestSessionId
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setConversationId(data.id);
-        
-        // Start with empty messages - never show old messages from previous sessions
-        setMessages([]);
-      }
-    } catch (error) {
-      console.error('Error creating conversation:', error);
+      return;
     }
-  };
 
-  const getOrCreateSessionId = () => {
-    let sessionId = sessionStorage.getItem('guest_session_id');
-    if (!sessionId) {
-      sessionId = `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      sessionStorage.setItem('guest_session_id', sessionId);
+    // Close existing WebSocket if any
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+      setIsConnected(false);
     }
-    return sessionId;
-  };
 
-  const connectWebSocket = () => {
-    if (!conversationId) return;
-
-    const wsUrl = `ws://localhost:8000/ws/support/chat/${conversationId}/`;
+    // Use the current conversationId from the dependency
+    const currentConversationId = conversationId;
+    const wsUrl = `ws://localhost:8000/ws/support/chat/${currentConversationId}/`;
     const websocket = new WebSocket(wsUrl);
 
     websocket.onopen = () => {
@@ -262,15 +164,118 @@ function SupportChat() {
 
     websocket.onclose = () => {
       setIsConnected(false);
-      // Try to reconnect after 3 seconds
-      setTimeout(() => {
-        if (isOpen && conversationId) {
-          connectWebSocket();
-        }
-      }, 3000);
     };
 
-    setWs(websocket);
+    wsRef.current = websocket;
+
+    return () => {
+      websocket.close();
+      wsRef.current = null;
+      setIsConnected(false);
+    };
+  }, [conversationId, isOpen]);
+
+  // Track authentication status on mount
+  useEffect(() => {
+    const wasAuthenticated = localStorage.getItem('is_authenticated') === 'true';
+    wasAuthenticatedRef.current = wasAuthenticated;
+  }, []);
+
+  // Close chat on logout (only when transitioning from authenticated to unauthenticated)
+  useEffect(() => {
+    const checkAuthStatus = () => {
+      const isAuthenticated = localStorage.getItem('is_authenticated') === 'true';
+      const wasAuthenticated = wasAuthenticatedRef.current;
+
+      // Only close chat if user was authenticated and now is not (logout happened)
+      if (wasAuthenticated && !isAuthenticated) {
+        // User logged out, close chat and disconnect completely
+        if (wsRef.current) {
+          wsRef.current.close();
+          wsRef.current = null;
+        }
+        setIsOpen(false);
+        setConversationId(null);
+        setMessages([]);
+        setInputMessage('');
+        setIsConnected(false);
+        setIsTyping(false);
+        // Clear guest session ID so new conversation is created for guest user
+        sessionStorage.removeItem('guest_session_id');
+      }
+      
+      // Always clear conversation if user is not authenticated (prevent showing old messages)
+      if (!isAuthenticated && conversationId) {
+        setConversationId(null);
+        setMessages([]);
+        if (wsRef.current) {
+          wsRef.current.close();
+          wsRef.current = null;
+        }
+        setIsConnected(false);
+        setIsTyping(false);
+      }
+
+      // Update ref for next check
+      wasAuthenticatedRef.current = isAuthenticated;
+    };
+
+    // Listen for storage changes (logout)
+    const handleStorageChange = (e) => {
+      if (e.key === 'is_authenticated' || e.key === null) {
+        checkAuthStatus();
+      }
+    };
+
+    // Listen for focus (in case logout happened in same tab)
+    const handleFocus = () => {
+      checkAuthStatus();
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [isOpen]);
+
+  const createConversation = async () => {
+    try {
+      const userId = localStorage.getItem('user_id');
+      const guestSessionId = !userId ? getOrCreateSessionId() : null;
+
+      // Always create a fresh conversation - don't reuse old ones
+      const response = await fetch(`${API_BASE_URL}/conversations/create/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          guest_session_id: guestSessionId
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setConversationId(data.id);
+        
+        // Start with empty messages - never show old messages from previous sessions
+        setMessages([]);
+      }
+    } catch (error) {
+      console.error('Error creating conversation:', error);
+    }
+  };
+
+  const getOrCreateSessionId = () => {
+    // Always generate a new session ID for guest users to ensure new conversation
+    // This ensures each chat session creates a new conversation instead of reusing old ones
+    const sessionId = `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    sessionStorage.setItem('guest_session_id', sessionId);
+    return sessionId;
   };
 
   const addSystemMessage = (text) => {
@@ -285,15 +290,15 @@ function SupportChat() {
   };
 
   const sendMessage = async () => {
-    if (!inputMessage.trim() || !ws || !isConnected) return;
+    if (!wsRef.current || !isConnected) return;
 
-    const messageContent = inputMessage.trim();
+    const messageContent = inputMessage;
     setInputMessage(''); // Clear input immediately for better UX
 
     // Send via WebSocket - message will be added to UI when received from server
     // Don't add optimistic update to avoid duplicates
     try {
-      ws.send(JSON.stringify({
+      wsRef.current.send(JSON.stringify({
         type: 'message',
         content: messageContent
       }));
@@ -526,7 +531,7 @@ function SupportChat() {
             />
             <button 
               onClick={sendMessage}
-              disabled={!inputMessage.trim() || !isConnected}
+              disabled={!isConnected}
               className="send-button"
             >
               Send

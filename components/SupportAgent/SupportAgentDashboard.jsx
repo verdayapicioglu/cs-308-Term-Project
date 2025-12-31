@@ -57,11 +57,34 @@ function SupportAgentDashboard() {
       loadCustomerDetails();
       const websocket = connectWebSocket();
       
+      // Refresh customer details every 5 seconds (only for logged-in customers)
+      const conversationId = selectedConversation.id;
+      const detailsInterval = setInterval(() => {
+        if (conversationId && selectedConversation) {
+          fetch(`${API_BASE_URL}/conversations/${conversationId}/customer-details/`, {
+            credentials: 'include'
+          })
+          .then(response => {
+            if (response.ok) {
+              return response.json();
+            }
+            throw new Error('Failed to fetch customer details');
+          })
+          .then(data => {
+            setCustomerDetails(data);
+          })
+          .catch(error => {
+            console.error('Error refreshing customer details:', error);
+          });
+        }
+      }, 5000);
+      
       return () => {
         // Cleanup: close WebSocket when conversation changes
         if (websocket) {
           websocket.close();
         }
+        clearInterval(detailsInterval);
         setWs(null);
         setIsConnected(false);
         setMessages([]);
@@ -127,7 +150,7 @@ function SupportAgentDashboard() {
   };
 
   const loadCustomerDetails = async () => {
-    if (!selectedConversation || !selectedConversation.customer) return;
+    if (!selectedConversation) return;
     try {
       const response = await fetch(`${API_BASE_URL}/conversations/${selectedConversation.id}/customer-details/`, {
         credentials: 'include'
@@ -267,9 +290,9 @@ function SupportAgentDashboard() {
   };
 
   const sendMessage = () => {
-    if (!inputMessage.trim() || !ws || !isConnected) return;
+    if (!ws || !isConnected) return;
 
-    const messageContent = inputMessage.trim();
+    const messageContent = inputMessage;
     setInputMessage('');
 
     // Send via WebSocket - message will be added to UI when received from server
@@ -431,18 +454,6 @@ function SupportAgentDashboard() {
                       isAgent = true;
                     }
                     
-                    // Debug: Log first message
-                    if (messages.indexOf(message) === 0) {
-                      console.error('[AGENT DASHBOARD DEBUG]', {
-                        messageId: message.id,
-                        raw_is_from_agent: rawValue,
-                        type: typeof rawValue,
-                        isAgent,
-                        sender_name: message.sender_name,
-                        content: message.content?.substring(0, 20)
-                      });
-                    }
-                    
                     // Always show "Support Agent" for agent messages
                     const displayName = isAgent ? 'Support Agent' : (message.sender_name || 'Customer');
                     
@@ -542,7 +553,7 @@ function SupportAgentDashboard() {
                   />
                   <button 
                     onClick={sendMessage}
-                    disabled={!inputMessage.trim() || !isConnected}
+                    disabled={!isConnected}
                     className="send-button"
                   >
                     Send
@@ -560,14 +571,38 @@ function SupportAgentDashboard() {
         {/* Customer Details Sidebar */}
         {selectedConversation && customerDetails && (
           <div className="customer-details">
-            <h3>Customer Details</h3>
-            <div className="customer-info">
-              <p><strong>Username:</strong> {customerDetails.username}</p>
-              <p><strong>Email:</strong> {customerDetails.email}</p>
-              <p><strong>Orders:</strong> {customerDetails.order_count}</p>
-              <p><strong>Cart Items:</strong> {customerDetails.cart_item_count}</p>
-              <p><strong>Wishlist Items:</strong> {customerDetails.wishlist_item_count || 0}</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <h3 style={{ margin: 0 }}>Customer Details</h3>
+              {customerDetails.username !== 'Guest User' && (
+                <button 
+                  onClick={loadCustomerDetails}
+                  style={{ 
+                    padding: '6px 12px', 
+                    background: '#5c0f4e', 
+                    color: 'white', 
+                    border: 'none', 
+                    borderRadius: '4px', 
+                    cursor: 'pointer',
+                    fontSize: '12px'
+                  }}
+                >
+                  Refresh
+                </button>
+              )}
             </div>
+            {customerDetails.username === 'Guest User' ? (
+              <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
+                <p>Customer details require login</p>
+              </div>
+            ) : (
+              <>
+                <div className="customer-info">
+                  <p><strong>Username:</strong> {customerDetails.username}</p>
+                  <p><strong>Email:</strong> {customerDetails.email}</p>
+                  <p><strong>Orders:</strong> {customerDetails.order_count}</p>
+                  <p><strong>Cart Items:</strong> {customerDetails.cart_item_count}</p>
+                  <p><strong>Wishlist Items:</strong> {customerDetails.wishlist_item_count || 0}</p>
+                </div>
 
             {customerDetails.orders && customerDetails.orders.length > 0 && (
               <div className="orders-section">
@@ -605,27 +640,32 @@ function SupportAgentDashboard() {
               </div>
             )}
 
-            {customerDetails.cart_items && customerDetails.cart_items.length > 0 && (
-              <div className="cart-section">
-                <h4>Cart Items</h4>
-                {customerDetails.cart_items.map((item, idx) => (
+            <div className="cart-section">
+              <h4>Cart Items ({customerDetails.cart_item_count || 0})</h4>
+              {customerDetails.cart_items && customerDetails.cart_items.length > 0 ? (
+                customerDetails.cart_items.map((item, idx) => (
                   <div key={idx} className="cart-item">
                     <p>{item.product_name} x{item.quantity}</p>
+                    {item.price && <p style={{ fontSize: '12px', color: '#666' }}>₺{typeof item.price === 'number' ? item.price.toFixed(2) : item.price}</p>}
                   </div>
-                ))}
-              </div>
-            )}
+                ))
+              ) : (
+                <p style={{ fontSize: '12px', color: '#999', fontStyle: 'italic' }}>Cart is empty</p>
+              )}
+            </div>
 
-            {customerDetails.wishlist_items && customerDetails.wishlist_items.length > 0 && (
-              <div className="wishlist-section">
-                <h4>Wishlist Items</h4>
-                {customerDetails.wishlist_items.map((item, idx) => (
-                  <div key={idx} className="wishlist-item">
-                    <p>{item.product_name}</p>
-                    {item.price && <p style={{ fontSize: '12px', color: '#666' }}>${typeof item.price === 'number' ? item.price.toFixed(2) : item.price}</p>}
+                {customerDetails.wishlist_items && customerDetails.wishlist_items.length > 0 && (
+                  <div className="wishlist-section">
+                    <h4>Wishlist Items</h4>
+                    {customerDetails.wishlist_items.map((item, idx) => (
+                      <div key={idx} className="wishlist-item">
+                        <p>{item.product_name}</p>
+                        {item.price && <p style={{ fontSize: '12px', color: '#666' }}>${typeof item.price === 'number' ? item.price.toFixed(2) : item.price}</p>}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </div>
         )}

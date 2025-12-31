@@ -58,7 +58,7 @@ class ConversationSerializer(serializers.ModelSerializer):
     def get_customer_name(self, obj):
         if obj.customer:
             return obj.customer.username
-        return f"Guest ({obj.guest_session_id[:8] if obj.guest_session_id else 'N/A'})"
+        return "Guest"
 
     def get_agent_name(self, obj):
         if obj.agent:
@@ -85,7 +85,7 @@ class ConversationListSerializer(serializers.ModelSerializer):
     def get_customer_name(self, obj):
         if obj.customer:
             return obj.customer.username
-        return f"Guest ({obj.guest_session_id[:8] if obj.guest_session_id else 'N/A'})"
+        return "Guest"
 
     def get_agent_name(self, obj):
         if obj.agent:

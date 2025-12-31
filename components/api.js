@@ -183,6 +183,8 @@ export function clearUserData() {
   localStorage.removeItem('is_admin');
   localStorage.removeItem('is_staff');
   localStorage.removeItem('is_superuser');
+  // Clear cart items when user logs out
+  localStorage.removeItem('cart_items');
 }
 
 /**
