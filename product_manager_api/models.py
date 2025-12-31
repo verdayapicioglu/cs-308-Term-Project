@@ -127,3 +127,45 @@ class Review(models.Model):
     def __str__(self):
         return f"Review for {self.product_name} by {self.user_name} ({self.status})"
 
+
+from django.contrib.auth.models import User
+
+class Delivery(models.Model):
+    """
+    Specific Delivery List table as requested.
+    Linked to Order, Product, and Customer (User).
+    """
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='deliveries')
+    customer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='deliveries', null=True, blank=True)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='deliveries')
+    quantity = models.IntegerField()
+    total_price = models.DecimalField(max_digits=10, decimal_places=2) 
+    delivery_address = models.TextField()
+    is_completed = models.BooleanField(default=False)
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name_plural = "Delivery"
+
+    def __str__(self):
+        return f"Delivery for Order {self.order.delivery_id} - {self.product.name}"
+
+
+# Signal to sync Delivery status when Order is updated (e.g. from Admin)
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+@receiver(post_save, sender=Order)
+def sync_delivery_status(sender, instance, **kwargs):
+    """
+    When Order status changes, update linked Delivery items.
+    """
+    is_completed = (instance.status == 'delivered')
+    # Update all linked delivery items
+    instance.deliveries.update(is_completed=is_completed)
+
+
+

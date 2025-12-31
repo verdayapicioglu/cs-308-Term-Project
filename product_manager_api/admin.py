@@ -2,7 +2,17 @@
 Django Admin configuration for Product Manager API
 """
 from django.contrib import admin
-from .models import Product, Order, Review, OrderItem, Category
+from .models import Product, Order, Review, OrderItem, Category, Delivery
+
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.contrib.auth.models import User
+
+# Re-register UserAdmin to show ID
+admin.site.unregister(User)
+
+@admin.register(User)
+class UserAdmin(BaseUserAdmin):
+    list_display = ('id', 'username', 'email', 'first_name', 'last_name', 'is_staff')
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
@@ -101,4 +111,16 @@ class ReviewAdmin(admin.ModelAdmin):
         queryset.update(status='rejected')
         self.message_user(request, f'{queryset.count()} comment(s) rejected.')
     reject_comments.short_description = 'Reject selected comments'
+
+
+@admin.register(Delivery)
+class DeliveryAdmin(admin.ModelAdmin):
+    list_display = ('id', 'order_link', 'customer_id', 'product', 'quantity', 'total_price', 'is_completed', 'created_at')
+    list_filter = ('is_completed', 'created_at')
+    search_fields = ('order__delivery_id', 'customer__username', 'product__name', 'delivery_address')
+    readonly_fields = ('created_at', 'updated_at')
+    
+    def order_link(self, obj):
+        return obj.order.delivery_id
+    order_link.short_description = 'Order ID'
 

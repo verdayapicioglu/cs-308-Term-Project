@@ -17,7 +17,7 @@ from .models import Product # Import Product model
 
 # Import Review and Order models
 try:
-    from .models import Review, Order, OrderItem, Category
+    from .models import Review, Order, OrderItem, Category, Delivery
     USE_DATABASE = True
 except ImportError:
     USE_DATABASE = False
@@ -663,6 +663,12 @@ def order_update_status(request, delivery_id):
                 from django.utils import timezone
                 order.delivery_date = timezone.now().date()
             
+            # Sync Delivery table status
+            # If order is delivered, mark all delivery items as completed
+            # If status changed away from delivered, mark as incomplete
+            is_completed = (new_status == 'delivered')
+            Delivery.objects.filter(order=order).update(is_completed=is_completed)
+            
             order.save()
             
             return Response({
@@ -1103,6 +1109,29 @@ def create_order(request):
                         price=price
                     )
                     
+                    # Create Delivery Record linked to foreign keys
+                    # Check if user is authenticated for customer FK
+                    customer_user = None
+                    if request.user.is_authenticated:
+                        customer_user = request.user
+                    else:
+                        # Fallback: Try to find user by email
+                         try:
+                             from django.contrib.auth.models import User
+                             customer_user = User.objects.filter(email=data.get("customer_email")).first()
+                         except:
+                             customer_user = None
+                    
+                    Delivery.objects.create(
+                        order=order,
+                        customer=customer_user,
+                        product=product_obj, 
+                        quantity=quantity_ordered,
+                        total_price=price * quantity_ordered,
+                        delivery_address=data["delivery_address"],
+                        is_completed=False
+                    )
+
                     order_items_data.append({
                         "product_id": product_id,
                         "product_name": product_name,
