@@ -96,14 +96,15 @@ const DEFAULT_PROFILE = {
       notes: 'Full coat care & nail trim for Mira.',
     },
   ],
-  favorites: ['Holistic Salmon Kibble', 'Bamboo Litter Refills', 'Interactive Feather Wand'],
+  favorites: ['Dog Treat Biscuit', 'Dog Chew Bone', 'Fur Comb'],
 };
 
 function sanitizeProfile(stored) {
   if (!stored) return DEFAULT_PROFILE;
   try {
     const parsed = JSON.parse(stored);
-    return { ...DEFAULT_PROFILE, ...parsed };
+    // Merge but always use DEFAULT_PROFILE's favorites (to ensure latest product names)
+    return { ...DEFAULT_PROFILE, ...parsed, favorites: DEFAULT_PROFILE.favorites };
   } catch (error) {
     console.warn('Corrupted profile data. Resetting to defaults.', error);
     return DEFAULT_PROFILE;
