@@ -167,10 +167,15 @@ REST_FRAMEWORK = {
         'rest_framework.parsers.MultiPartParser',
         'rest_framework.parsers.FormParser',
         'rest_framework.parsers.JSONParser',
+        'rest_framework.parsers.MultiPartParser',
+        'rest_framework.parsers.FormParser',
     ],
     # Disable CSRF for API endpoints (handled by our middleware)
     'EXCEPTION_HANDLER': 'rest_framework.views.exception_handler',
 }
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 # CSRF settings for API endpoints
 # Exempt API views from CSRF (since we're using DRF with session auth)

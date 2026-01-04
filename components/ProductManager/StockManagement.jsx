@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { productManagerAPI } from '../../api';
+import { useSearchParams } from 'react-router-dom';
+import { productManagerAPI } from '../api';
 import './StockManagement.css';
 
 function StockManagement() {
+  const [searchParams] = useSearchParams();
   const [stock, setStock] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editingStock, setEditingStock] = useState(null);
   const [newQuantity, setNewQuantity] = useState('');
+
+  const filterType = searchParams.get('filter'); // 'low_stock' or 'out_of_stock'
 
   useEffect(() => {
     fetchStock();
@@ -26,6 +30,17 @@ function StockManagement() {
     }
   };
 
+  const filteredStock = stock.filter(item => {
+    if (filterType === 'low_stock') {
+      return item.low_stock && !item.out_of_stock;
+    }
+    if (filterType === 'out_of_stock') {
+      return item.out_of_stock;
+    }
+    return true; // No filter, show all
+  });
+
+  // Handlers (handleEdit, handleSave, handleCancel) remain the same...
   const handleEdit = (item) => {
     setEditingStock(item.product_id);
     setNewQuantity(item.quantity_in_stock);
@@ -55,7 +70,14 @@ function StockManagement() {
 
   return (
     <div className="stock-management-container">
-      <h1>Stock Management</h1>
+      <h1>Stock Management {filterType === 'low_stock' ? '(Low Stock)' : filterType === 'out_of_stock' ? '(Out of Stock)' : ''}</h1>
+
+      {filterType && (
+        <div className="filter-info">
+          Showing {filterType === 'low_stock' ? 'low stock products' : 'out of stock products'}.
+          <button className="clear-filter" onClick={() => window.location.href = '/product-manager/stock'}>Show All</button>
+        </div>
+      )}
 
       {error && <div className="sm-error">{error}</div>}
 
@@ -71,7 +93,7 @@ function StockManagement() {
             </tr>
           </thead>
           <tbody>
-            {stock.map((item) => (
+            {filteredStock.map((item) => (
               <tr key={item.product_id} className={item.out_of_stock ? 'out-of-stock-row' : item.low_stock ? 'low-stock-row' : ''}>
                 <td>{item.product_id}</td>
                 <td>{item.product_name}</td>

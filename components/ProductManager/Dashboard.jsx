@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { productManagerAPI } from '../../api';
+import { useNavigate } from 'react-router-dom';
+import { productManagerAPI } from '../api';
 import './Dashboard.css';
 
 function Dashboard() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchStats();
@@ -35,9 +37,9 @@ function Dashboard() {
   return (
     <div className="dashboard-container">
       <h1 className="dashboard-title">Product Manager Dashboard</h1>
-      
+
       <div className="stats-grid">
-        <div className="stat-card products">
+        <div className="stat-card products" onClick={() => navigate('/product-manager/products')}>
           <div className="stat-icon">📦</div>
           <div className="stat-content">
             <div className="stat-value">{stats?.total_products || 0}</div>
@@ -45,7 +47,7 @@ function Dashboard() {
           </div>
         </div>
 
-        <div className="stat-card stock-warning">
+        <div className="stat-card stock-warning" onClick={() => navigate('/product-manager/stock?filter=low_stock')}>
           <div className="stat-icon">⚠️</div>
           <div className="stat-content">
             <div className="stat-value">{stats?.low_stock_products || 0}</div>
@@ -53,7 +55,7 @@ function Dashboard() {
           </div>
         </div>
 
-        <div className="stat-card out-of-stock">
+        <div className="stat-card out-of-stock" onClick={() => navigate('/product-manager/stock?filter=out_of_stock')}>
           <div className="stat-icon">❌</div>
           <div className="stat-content">
             <div className="stat-value">{stats?.out_of_stock_products || 0}</div>
@@ -61,7 +63,7 @@ function Dashboard() {
           </div>
         </div>
 
-        <div className="stat-card orders">
+        <div className="stat-card orders" onClick={() => navigate('/delivery/dashboard')}>
           <div className="stat-icon">📋</div>
           <div className="stat-content">
             <div className="stat-value">{stats?.total_orders || 0}</div>
@@ -69,7 +71,7 @@ function Dashboard() {
           </div>
         </div>
 
-        <div className="stat-card processing">
+        <div className="stat-card processing" onClick={() => navigate('/product-manager/orders?status=processing')}>
           <div className="stat-icon">⏳</div>
           <div className="stat-content">
             <div className="stat-value">{stats?.processing_orders || 0}</div>
@@ -77,7 +79,7 @@ function Dashboard() {
           </div>
         </div>
 
-        <div className="stat-card in-transit">
+        <div className="stat-card in-transit" onClick={() => navigate('/product-manager/orders?status=in-transit')}>
           <div className="stat-icon">🚚</div>
           <div className="stat-content">
             <div className="stat-value">{stats?.in_transit_orders || 0}</div>
@@ -85,7 +87,7 @@ function Dashboard() {
           </div>
         </div>
 
-        <div className="stat-card delivered">
+        <div className="stat-card delivered" onClick={() => navigate('/product-manager/orders?status=delivered')}>
           <div className="stat-icon">✅</div>
           <div className="stat-content">
             <div className="stat-value">{stats?.delivered_orders || 0}</div>
@@ -93,7 +95,7 @@ function Dashboard() {
           </div>
         </div>
 
-        <div className="stat-card comments">
+        <div className="stat-card comments" onClick={() => navigate('/product-manager/comments')}>
           <div className="stat-icon">💬</div>
           <div className="stat-content">
             <div className="stat-value">{stats?.pending_comments || 0}</div>
@@ -101,7 +103,7 @@ function Dashboard() {
           </div>
         </div>
 
-        <div className="stat-card categories">
+        <div className="stat-card categories" onClick={() => navigate('/product-manager/categories')}>
           <div className="stat-icon">🏷️</div>
           <div className="stat-content">
             <div className="stat-value">{stats?.total_categories || 0}</div>
@@ -119,7 +121,7 @@ function Dashboard() {
           <button className="action-btn" onClick={() => window.location.href = '/product-manager/stock'}>
             Manage Stock
           </button>
-          <button className="action-btn" onClick={() => window.location.href = '/product-manager/orders'}>
+          <button className="action-btn" onClick={() => window.location.href = '/delivery/dashboard'}>
             View Orders
           </button>
           <button className="action-btn" onClick={() => window.location.href = '/product-manager/comments'}>

@@ -10,23 +10,29 @@ function OrderManagement() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
+  const [dateFilter, setDateFilter] = useState(searchParams.get('date') || '');
   const [selectedInvoiceOrder, setSelectedInvoiceOrder] = useState(null);
 
   useEffect(() => {
-    // URL'den status parametresini al
+    // URL'den parametreleri al
     const statusFromUrl = searchParams.get('status');
-    if (statusFromUrl) {
-      setStatusFilter(statusFromUrl);
-    }
+    const dateFromUrl = searchParams.get('date');
+    if (statusFromUrl !== null) setStatusFilter(statusFromUrl);
+    if (dateFromUrl !== null) setDateFilter(dateFromUrl);
   }, [searchParams]);
 
   useEffect(() => {
     fetchOrders();
-  }, [statusFilter]);
+  }, [statusFilter, dateFilter]);
 
   const fetchOrders = async () => {
     try {
-      const response = await productManagerAPI.getOrders(statusFilter || null);
+      // Build params object
+      const params = {};
+      if (statusFilter) params.status = statusFilter;
+      if (dateFilter) params.date = dateFilter;
+
+      const response = await productManagerAPI.getOrders(params);
       setOrders(response.data.orders || []);
       setError('');
     } catch (err) {
@@ -105,8 +111,8 @@ function OrderManagement() {
 
             <div className="order-info">
               <div className="info-row">
-                <span className="info-label">Customer:</span>
-                <span className="info-value">{order.customer_name}</span>
+                <span className="info-label">Customer ID:</span>
+                <span className="info-value">{order.customer_id}</span>
               </div>
               <div className="info-row">
                 <span className="info-label">Email:</span>

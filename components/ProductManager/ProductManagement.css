@@ -108,9 +108,19 @@
 }
 
 .form-group input:focus,
-.form-group textarea:focus {
+.form-group textarea:focus,
+.form-group select:focus {
   outline: none;
   border-color: #667eea;
+}
+
+.form-group select {
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  font-size: 14px;
+  background-color: white;
+  cursor: pointer;
 }
 
 .form-actions {
@@ -188,5 +198,3 @@
 .btn-delete:hover {
   opacity: 0.9;
 }
-
-

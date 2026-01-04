@@ -14,6 +14,7 @@ from django.db.models.functions import Coalesce
 from django.db.models.functions import Coalesce
 from django.db import transaction # Import transaction
 from .models import Product # Import Product model
+from django.views.decorators.csrf import csrf_exempt
 
 # Import Review and Order models
 try:
@@ -259,6 +260,15 @@ def product_list_create(request):
                      # Let's create it to be safe and consistent with previous behavior
                      category_obj = Category.objects.create(name=category_name)
 
+            # Handle file upload
+            image_url = request.data.get('image_url', '')
+            if 'image' in request.FILES:
+                image_file = request.FILES['image']
+                from django.core.files.storage import FileSystemStorage
+                fs = FileSystemStorage(location='media/products', base_url='/media/products/')
+                filename = fs.save(image_file.name, image_file)
+                image_url = fs.url(filename)
+
             p = Product.objects.create(
                 name=request.data.get('name'),
                 model=request.data.get('model', ''),
@@ -270,7 +280,7 @@ def product_list_create(request):
                 distributor=request.data.get('distributor', ''),
                 category=category_obj,
                 cost=float(request.data.get('cost')) if request.data.get('cost') else None,
-                image_url=request.data.get('image_url', '')
+                image_url=image_url
             )
             
             new_product = {
@@ -283,7 +293,7 @@ def product_list_create(request):
                 "price": float(p.price),
                 "warranty_status": p.warranty_status,
                 "distributor": p.distributor,
-                "category": p.category,
+                "category": p.category.name if p.category else None,
                 "cost": float(p.cost) if p.cost else None,
                 "image_url": p.image_url
             }
@@ -326,6 +336,13 @@ def product_detail(request, product_id):
             if 'price' in request.data: product.price = float(request.data['price'])
             if 'quantity_in_stock' in request.data: product.quantity_in_stock = int(request.data['quantity_in_stock'])
             if 'image_url' in request.data: product.image_url = request.data['image_url']
+            
+            if 'image' in request.FILES:
+                image_file = request.FILES['image']
+                from django.core.files.storage import FileSystemStorage
+                fs = FileSystemStorage(location='media/products', base_url='/media/products/')
+                filename = fs.save(image_file.name, image_file)
+                product.image_url = fs.url(filename)
             
             if 'category' in request.data and USE_DATABASE and Category:
                 category_name = request.data['category']
@@ -445,7 +462,7 @@ def stock_list(request):
             'product_id': p.id,
             'product_name': p.name,
             'quantity_in_stock': p.quantity_in_stock,
-            'low_stock': p.quantity_in_stock < 20,
+            'low_stock': p.quantity_in_stock < 10,
             'out_of_stock': p.quantity_in_stock == 0
         }
         for p in products
@@ -497,6 +514,13 @@ def order_list(request):
         # product_filter might be tricky now since it's in items.
         if product_filter:
              orders_query = orders_query.filter(items__product_id=product_filter).distinct()
+        
+        date_filter = request.query_params.get('date')
+        if date_filter == 'today':
+            orders_query = orders_query.filter(order_date=timezone.now().date())
+        elif date_filter == 'week':
+            seven_days_ago = timezone.now().date() - timezone.timedelta(days=7)
+            orders_query = orders_query.filter(order_date__gte=seven_days_ago)
             
         orders_data = [{
             'delivery_id': o.delivery_id,
@@ -809,6 +833,7 @@ def comment_list(request):
         'pending_count': pending_count
     }, status=status.HTTP_200_OK)
 
+@csrf_exempt
 @api_view(['PUT'])
 @permission_classes([AllowAny])
 def comment_approve(request, comment_id):
@@ -900,16 +925,37 @@ def comment_approve(request, comment_id):
 @permission_classes([AllowAny])
 def dashboard_stats(request):
     """Get dashboard statistics"""
+    if USE_DATABASE and Product:
+        total_products = Product.objects.count()
+        low_stock_products = Product.objects.filter(quantity_in_stock__lt=10, quantity_in_stock__gt=0).count()
+        out_of_stock_products = Product.objects.filter(quantity_in_stock__lte=0).count()
+        total_orders = Order.objects.count()
+        processing_orders = Order.objects.filter(status='processing').count()
+        in_transit_orders = Order.objects.filter(status='in-transit').count()
+        delivered_orders = Order.objects.filter(status='delivered').count()
+        pending_comments = Review.objects.filter(status='pending').count()
+        total_categories = Category.objects.count()
+    else:
+        total_products = len(MOCK_PRODUCTS)
+        low_stock_products = len([p for p in MOCK_PRODUCTS if p['quantity_in_stock'] < 10 and p['quantity_in_stock'] > 0])
+        out_of_stock_products = len([p for p in MOCK_PRODUCTS if p['quantity_in_stock'] <= 0])
+        total_orders = len(MOCK_ORDERS)
+        processing_orders = len([o for o in MOCK_ORDERS if o['status'] == 'processing'])
+        in_transit_orders = len([o for o in MOCK_ORDERS if o['status'] == 'in-transit'])
+        delivered_orders = len([o for o in MOCK_ORDERS if o['status'] == 'delivered'])
+        pending_comments = len([c for c in MOCK_COMMENTS if c['status'] == 'pending'])
+        total_categories = len(MOCK_CATEGORIES)
+
     return Response({
-        'total_products': len(MOCK_PRODUCTS),
-        'low_stock_products': len([p for p in MOCK_PRODUCTS if p['quantity_in_stock'] < 20 and p['quantity_in_stock'] > 0]),
-        'out_of_stock_products': len([p for p in MOCK_PRODUCTS if p['quantity_in_stock'] == 0]),
-        'total_orders': len(MOCK_ORDERS),
-        'processing_orders': len([o for o in MOCK_ORDERS if o['status'] == 'processing']),
-        'in_transit_orders': len([o for o in MOCK_ORDERS if o['status'] == 'in-transit']),
-        'delivered_orders': len([o for o in MOCK_ORDERS if o['status'] == 'delivered']),
-        'pending_comments': Review.objects.filter(status='pending').count() if (USE_DATABASE and Review) else len([c for c in MOCK_COMMENTS if c['status'] == 'pending']),
-        'total_categories': len(MOCK_CATEGORIES)
+        'total_products': total_products,
+        'low_stock_products': low_stock_products,
+        'out_of_stock_products': out_of_stock_products,
+        'total_orders': total_orders,
+        'processing_orders': processing_orders,
+        'in_transit_orders': in_transit_orders,
+        'delivered_orders': delivered_orders,
+        'pending_comments': pending_comments,
+        'total_categories': total_categories
     }, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
@@ -1054,7 +1100,20 @@ def create_order(request):
 
         # Create delivery/order id
         delivery_id = f"DEL-{uuid.uuid4().hex[:6].upper()}"
-        customer_id = f"CUST-{uuid.uuid4().hex[:6].upper()}"
+        if request.user.is_authenticated:
+            customer_id = str(request.user.id)
+        else:
+            # Try to match by email if not authenticated but user exists? 
+            # Or just random. User said "djangodan gerçek id". 
+            # If not logged in, random is the best we can do unless we lookup email.
+            # Let's check email lookup too for robustness, consistent with Delivery creation logic below.
+            from django.contrib.auth.models import User
+            user_by_email = User.objects.filter(email=data.get("customer_email")).first()
+            if user_by_email:
+                customer_id = str(user_by_email.id)
+            else:
+                customer_id = f"CUST-{uuid.uuid4().hex[:6].upper()}"
+        
         order_date = date.today()
 
         # Try to save to database first

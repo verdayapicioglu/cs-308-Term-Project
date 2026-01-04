@@ -18,29 +18,29 @@ function CommentApproval() {
     try {
       setLoading(true);
       setError('');
-      
+
       // Build endpoint with status filter
       const endpoint = statusFilter ? `/comments/?status=${statusFilter}` : '/comments/';
       // Handle empty string as null for "All Comments"
       const filterValue = statusFilter === '' ? null : statusFilter;
       const response = await productManagerAPI.getComments(filterValue);
-      
+
       console.log('API Response:', response); // Debug log
       console.log('Status Filter:', statusFilter, 'Filter Value:', filterValue); // Debug log
-      
+
       const commentsData = response?.data?.comments || [];
-      
+
       console.log('Comments data:', commentsData); // Debug log
-      
+
       // Sort by date - newest first
       commentsData.sort((a, b) => {
         const dateA = new Date(a.date || a.created_at || 0);
         const dateB = new Date(b.date || b.created_at || 0);
         return dateB - dateA;
       });
-      
+
       setComments(commentsData);
-      
+
       // Load stats (get all comments without filter)
       const allResponse = await productManagerAPI.getComments(null);
       const allComments = allResponse?.data?.comments || [];
@@ -63,8 +63,8 @@ function CommentApproval() {
     try {
       await productManagerAPI.approveComment(commentId, action);
       setMessage(`Comment ${action === 'approve' ? 'approved' : 'rejected'} successfully!`);
-      setTimeout(() => setMessage(''), 3000);
-      loadComments(); // Reload comments
+      // Force reload to ensure everything is synced
+      window.location.reload();
     } catch (err) {
       setError('Failed to update comment status');
       console.error('Error:', err);
@@ -141,19 +141,19 @@ function CommentApproval() {
       )}
 
       <div className="comments-stats">
-        <div className="stat-card pending-stat">
+        <div className="stat-card pending-stat" onClick={() => setStatusFilter('pending')}>
           <span className="stat-label">Pending</span>
           <span className="stat-value">{stats.pending}</span>
         </div>
-        <div className="stat-card approved-stat">
+        <div className="stat-card approved-stat" onClick={() => setStatusFilter('approved')}>
           <span className="stat-label">Approved</span>
           <span className="stat-value">{stats.approved}</span>
         </div>
-        <div className="stat-card rejected-stat">
+        <div className="stat-card rejected-stat" onClick={() => setStatusFilter('rejected')}>
           <span className="stat-label">Rejected</span>
           <span className="stat-value">{stats.rejected}</span>
         </div>
-        <div className="stat-card total-stat">
+        <div className="stat-card total-stat" onClick={() => setStatusFilter('')}>
           <span className="stat-label">Total</span>
           <span className="stat-value">{stats.total}</span>
         </div>
@@ -165,11 +165,11 @@ function CommentApproval() {
             <div className="no-comments-icon">💬</div>
             <h3>No comments found</h3>
             <p>
-              {statusFilter 
-                ? `No ${statusFilter} comments at the moment.` 
+              {statusFilter
+                ? `No ${statusFilter} comments at the moment.`
                 : 'No comments have been submitted yet.'}
             </p>
-            <p style={{fontSize: '12px', color: '#999', marginTop: '10px'}}>
+            <p style={{ fontSize: '12px', color: '#999', marginTop: '10px' }}>
               Debug: Filter = "{statusFilter}", Comments array length = {comments.length}
             </p>
           </div>

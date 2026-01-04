@@ -320,6 +320,12 @@ async function productManagerRequest(endpoint, options = {}) {
     },
   };
 
+  // If body is FormData, let the browser set the Content-Type header 
+  // (which will include the boundary)
+  if (options.body instanceof FormData) {
+    delete config.headers['Content-Type'];
+  }
+
   try {
     const response = await fetch(url, config);
 
@@ -385,9 +391,10 @@ export const productManagerAPI = {
    * @param {Object} productData - Product data
    */
   async createProduct(productData) {
+    const isFormData = productData instanceof FormData;
     return productManagerRequest('/products/', {
       method: 'POST',
-      body: JSON.stringify(productData),
+      body: isFormData ? productData : JSON.stringify(productData),
     });
   },
 
@@ -397,9 +404,10 @@ export const productManagerAPI = {
    * @param {Object} productData - Updated product data
    */
   async updateProduct(productId, productData) {
+    const isFormData = productData instanceof FormData;
     return productManagerRequest(`/products/${productId}/`, {
       method: 'PUT',
-      body: JSON.stringify(productData),
+      body: isFormData ? productData : JSON.stringify(productData),
     });
   },
 

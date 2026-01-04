@@ -14,16 +14,16 @@ export default function Menubar() {
   useEffect(() => {
     const checkAuth = () => {
       const authStatus = localStorage.getItem("is_authenticated") === "true";
-      const adminStatus = localStorage.getItem("is_admin") === "true" || 
-                          localStorage.getItem("is_staff") === "true" || 
-                          localStorage.getItem("is_superuser") === "true";
+      const adminStatus = localStorage.getItem("is_admin") === "true" ||
+        localStorage.getItem("is_staff") === "true" ||
+        localStorage.getItem("is_superuser") === "true";
       const email = localStorage.getItem("user_email") || "";
 
       setIsAuthenticated(authStatus);
       setIsAdmin(adminStatus);
       setUserEmail(email);
     };
-    
+
     // Check immediately
     checkAuth();
   }, [location]);
@@ -32,9 +32,9 @@ export default function Menubar() {
   useEffect(() => {
     const handleStorageChange = () => {
       const authStatus = localStorage.getItem("is_authenticated") === "true";
-      const adminStatus = localStorage.getItem("is_admin") === "true" || 
-                          localStorage.getItem("is_staff") === "true" || 
-                          localStorage.getItem("is_superuser") === "true";
+      const adminStatus = localStorage.getItem("is_admin") === "true" ||
+        localStorage.getItem("is_staff") === "true" ||
+        localStorage.getItem("is_superuser") === "true";
       const email = localStorage.getItem("user_email") || "";
 
       setIsAuthenticated(authStatus);
@@ -95,9 +95,7 @@ export default function Menubar() {
         <Link to="/profile">Profile</Link>
         {isAdmin && (
           <>
-            <Link to="/product-manager/comments">Comment Approval</Link>
-            <Link to="/delivery/dashboard">Delivery Dashboard</Link>
-            <Link to="/support/dashboard">Support Dashboard</Link>
+            <Link to="/product-manager">Product Manager</Link>
           </>
         )}
       </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { productManagerAPI } from '../api';
 import './DeliveryDashboard.css';
 
@@ -6,6 +7,7 @@ function DeliveryDashboard() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchStats();
@@ -38,9 +40,9 @@ function DeliveryDashboard() {
   return (
     <div className="delivery-dashboard-container">
       <h1 className="delivery-dashboard-title">Delivery Department Dashboard</h1>
-      
+
       <div className="delivery-stats-grid">
-        <div className="delivery-stat-card total-orders">
+        <div className="delivery-stat-card total-orders" onClick={() => navigate('/delivery/orders')}>
           <div className="delivery-stat-icon">📦</div>
           <div className="delivery-stat-content">
             <div className="delivery-stat-value">{stats?.total_orders || 0}</div>
@@ -48,7 +50,7 @@ function DeliveryDashboard() {
           </div>
         </div>
 
-        <div className="delivery-stat-card pending">
+        <div className="delivery-stat-card pending" onClick={() => navigate('/delivery/orders')}>
           <div className="delivery-stat-icon">⏳</div>
           <div className="delivery-stat-content">
             <div className="delivery-stat-value">{stats?.pending_deliveries || 0}</div>
@@ -56,7 +58,7 @@ function DeliveryDashboard() {
           </div>
         </div>
 
-        <div className="delivery-stat-card processing">
+        <div className="delivery-stat-card processing" onClick={() => navigate('/delivery/orders?status=processing')}>
           <div className="delivery-stat-icon">🔄</div>
           <div className="delivery-stat-content">
             <div className="delivery-stat-value">{stats?.processing_orders || 0}</div>
@@ -64,7 +66,7 @@ function DeliveryDashboard() {
           </div>
         </div>
 
-        <div className="delivery-stat-card in-transit">
+        <div className="delivery-stat-card in-transit" onClick={() => navigate('/delivery/orders?status=in-transit')}>
           <div className="delivery-stat-icon">🚚</div>
           <div className="delivery-stat-content">
             <div className="delivery-stat-value">{stats?.in_transit_orders || 0}</div>
@@ -72,7 +74,7 @@ function DeliveryDashboard() {
           </div>
         </div>
 
-        <div className="delivery-stat-card delivered">
+        <div className="delivery-stat-card delivered" onClick={() => navigate('/delivery/orders?status=delivered')}>
           <div className="delivery-stat-icon">✅</div>
           <div className="delivery-stat-content">
             <div className="delivery-stat-value">{stats?.delivered_orders || 0}</div>
@@ -80,7 +82,7 @@ function DeliveryDashboard() {
           </div>
         </div>
 
-        <div className="delivery-stat-card today">
+        <div className="delivery-stat-card today" onClick={() => navigate('/delivery/orders?date=today')}>
           <div className="delivery-stat-icon">📅</div>
           <div className="delivery-stat-content">
             <div className="delivery-stat-value">{stats?.today_orders || 0}</div>
@@ -88,7 +90,7 @@ function DeliveryDashboard() {
           </div>
         </div>
 
-        <div className="delivery-stat-card recent">
+        <div className="delivery-stat-card recent" onClick={() => navigate('/delivery/orders?date=week')}>
           <div className="delivery-stat-icon">📊</div>
           <div className="delivery-stat-content">
             <div className="delivery-stat-value">{stats?.recent_orders || 0}</div>
@@ -96,7 +98,7 @@ function DeliveryDashboard() {
           </div>
         </div>
 
-        <div className="delivery-stat-card urgent">
+        <div className="delivery-stat-card urgent" onClick={() => navigate('/delivery/orders?status=processing')}>
           <div className="delivery-stat-icon">⚠️</div>
           <div className="delivery-stat-content">
             <div className="delivery-stat-value">{stats?.urgent_orders || 0}</div>
@@ -117,8 +119,8 @@ function DeliveryDashboard() {
           <div className="delivery-stat-icon">⏱️</div>
           <div className="delivery-stat-content">
             <div className="delivery-stat-value">
-              {stats?.avg_delivery_days !== null && stats?.avg_delivery_days !== undefined 
-                ? `${stats.avg_delivery_days} days` 
+              {stats?.avg_delivery_days !== null && stats?.avg_delivery_days !== undefined
+                ? `${stats.avg_delivery_days} days`
                 : 'N/A'}
             </div>
             <div className="delivery-stat-label">Avg Delivery Time</div>
@@ -129,26 +131,26 @@ function DeliveryDashboard() {
       <div className="delivery-quick-actions">
         <h2>Quick Actions</h2>
         <div className="delivery-actions-grid">
-          <button 
-            className="delivery-action-btn" 
+          <button
+            className="delivery-action-btn"
             onClick={() => window.location.href = '/delivery/orders'}
           >
             View All Orders
           </button>
-          <button 
-            className="delivery-action-btn" 
+          <button
+            className="delivery-action-btn"
             onClick={() => window.location.href = '/delivery/orders?status=processing'}
           >
             Processing Orders
           </button>
-          <button 
-            className="delivery-action-btn" 
+          <button
+            className="delivery-action-btn"
             onClick={() => window.location.href = '/delivery/orders?status=in-transit'}
           >
             In Transit Orders
           </button>
-          <button 
-            className="delivery-action-btn" 
+          <button
+            className="delivery-action-btn"
             onClick={() => window.location.href = '/delivery/orders?status=delivered'}
           >
             Delivered Orders

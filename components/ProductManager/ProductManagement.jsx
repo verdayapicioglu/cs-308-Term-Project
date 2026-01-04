@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { productManagerAPI } from '../../api';
+import { productManagerAPI } from '../api';
 import './ProductManagement.css';
 
 function ProductManagement() {
@@ -18,12 +18,27 @@ function ProductManagement() {
     warranty_status: '',
     distributor: '',
     category: '',
-    cost: ''
+    cost: '',
+    image_url: ''
   });
+
+  const [categories, setCategories] = useState([]);
 
   useEffect(() => {
     fetchProducts();
+    fetchCategories();
   }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const response = await productManagerAPI.getCategories();
+      if (response.data && response.data.categories) {
+        setCategories(response.data.categories);
+      }
+    } catch (err) {
+      console.error('Error fetching categories:', err);
+    }
+  };
 
   const fetchProducts = async () => {
     try {
@@ -38,13 +53,28 @@ function ProductManagement() {
     }
   };
 
+  const [selectedFile, setSelectedFile] = useState(null);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      const data = new FormData();
+      Object.keys(formData).forEach(key => {
+        if (key !== 'image_url') { // Don't send image_url string if we are sending a file, or handle logic
+          data.append(key, formData[key]);
+        }
+      });
+      // specific image_url handling if needed, but we prefer file
+      if (selectedFile) {
+        data.append('image', selectedFile);
+      } else if (formData.image_url) {
+        data.append('image_url', formData.image_url);
+      }
+
       if (editingProduct) {
-        await productManagerAPI.updateProduct(editingProduct.id, formData);
+        await productManagerAPI.updateProduct(editingProduct.id, data);
       } else {
-        await productManagerAPI.createProduct(formData);
+        await productManagerAPI.createProduct(data);
       }
       fetchProducts();
       resetForm();
@@ -54,6 +84,12 @@ function ProductManagement() {
       console.error('Error:', err);
     }
   };
+
+  const handleFileChange = (e) => {
+    setSelectedFile(e.target.files[0]);
+  };
+
+
 
   const handleEdit = (product) => {
     setEditingProduct(product);
@@ -67,7 +103,8 @@ function ProductManagement() {
       warranty_status: product.warranty_status || '',
       distributor: product.distributor || '',
       category: product.category || '',
-      cost: product.cost || ''
+      cost: product.cost || '',
+      image_url: product.image_url || ''
     });
     setShowAddForm(true);
   };
@@ -95,8 +132,10 @@ function ProductManagement() {
       warranty_status: '',
       distributor: '',
       category: '',
-      cost: ''
+      cost: '',
+      image_url: ''
     });
+    setSelectedFile(null);
     setEditingProduct(null);
     setShowAddForm(false);
   };
@@ -109,7 +148,14 @@ function ProductManagement() {
     <div className="product-management-container">
       <div className="pm-header">
         <h1>Product Management</h1>
-        <button className="btn-primary" onClick={() => setShowAddForm(!showAddForm)}>
+        <button className="btn-primary" onClick={() => {
+          if (showAddForm) {
+            resetForm();
+          } else {
+            resetForm();
+            setShowAddForm(true);
+          }
+        }}>
           {showAddForm ? 'Cancel' : '+ Add New Product'}
         </button>
       </div>
@@ -119,7 +165,7 @@ function ProductManagement() {
       {showAddForm && (
         <form className="product-form" onSubmit={handleSubmit}>
           <h2>{editingProduct ? 'Edit Product' : 'Add New Product'}</h2>
-          
+
           <div className="form-row">
             <div className="form-group">
               <label>Product Name *</label>
@@ -153,12 +199,19 @@ function ProductManagement() {
             </div>
             <div className="form-group">
               <label>Category *</label>
-              <input
-                type="text"
+              <select
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                 required
-              />
+                className="category-select"
+              >
+                <option value="">Select a Category</option>
+                {categories.map((cat, index) => (
+                  <option key={index} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -170,6 +223,26 @@ function ProductManagement() {
               required
               rows="3"
             />
+          </div>
+
+          <div className="form-group">
+            <label>Product Image (Upload or URL)</label>
+            <div className="image-input-group">
+              <input
+                type="file"
+                onChange={handleFileChange}
+                accept="image/*"
+                className="file-input"
+              />
+              <span className="separator">OR</span>
+              <input
+                type="text"
+                value={formData.image_url}
+                onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
+                placeholder="Paste Image URL"
+                className="url-input"
+              />
+            </div>
           </div>
 
           <div className="form-row">
@@ -254,7 +327,7 @@ function ProductManagement() {
                 <td>{product.model}</td>
                 <td>{product.category}</td>
                 <td>${product.price}</td>
-                <td className={product.quantity_in_stock === 0 ? 'out-of-stock' : product.quantity_in_stock < 20 ? 'low-stock' : ''}>
+                <td className={product.quantity_in_stock === 0 ? 'out-of-stock' : product.quantity_in_stock < 10 ? 'low-stock' : ''}>
                   {product.quantity_in_stock}
                 </td>
                 <td>
