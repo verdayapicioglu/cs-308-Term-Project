@@ -5,7 +5,7 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
-from .models import CartItem
+from .models import CartItem, WishlistItem
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
@@ -192,5 +192,25 @@ class CartItemSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         # Convert Decimal to float for JSON
         data['price'] = float(data['price'])
+        return data
+
+
+class WishlistItemSerializer(serializers.ModelSerializer):
+    """Serializer for wishlist items"""
+    id = serializers.IntegerField(read_only=True)  # WishlistItem ID
+    
+    class Meta:
+        model = WishlistItem
+        fields = ('id', 'product_id', 'product_name', 'price', 
+                  'image_url', 'description', 'created_at')
+        read_only_fields = ('id', 'created_at')
+    
+    def to_representation(self, instance):
+        """Convert to frontend-compatible format"""
+        data = super().to_representation(instance)
+        # Convert Decimal to float for JSON
+        data['price'] = float(data['price'])
+        if data.get('created_at'):
+            data['created_at'] = instance.created_at.isoformat() if hasattr(instance.created_at, 'isoformat') else data['created_at']
         return data
 

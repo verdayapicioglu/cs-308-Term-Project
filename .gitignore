@@ -2,6 +2,9 @@
 db.sqlite3
 db 2.sqlite3
 
+# Media files (user uploaded content)
+media/
+
 # Python bytecode
 __pycache__/
 *.pyc

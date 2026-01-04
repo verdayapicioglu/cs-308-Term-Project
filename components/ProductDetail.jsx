@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { productsAPI } from '../product_manager_api';
-import { productManagerAPI } from './api';
+import { productManagerAPI, wishlistAPI } from './api';
 import {
   hasDeliveredProduct,
   hasReviewedProduct,
@@ -209,9 +209,59 @@ function ProductDetail() {
     }
   };
 
+  const [isInWishlist, setIsInWishlist] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    const authStatus = localStorage.getItem('is_authenticated') === 'true';
+    setIsAuthenticated(authStatus);
+    if (authStatus && product) {
+      checkWishlistStatus();
+    }
+  }, [product?.id]);
+
+  const checkWishlistStatus = async () => {
+    if (!product) return;
+    try {
+      const response = await wishlistAPI.getWishlist();
+      const items = response.data.items || [];
+      const found = items.some(item => item.product_id === product.id);
+      setIsInWishlist(found);
+    } catch (error) {
+      setIsInWishlist(false);
+    }
+  };
+
   const handleAddToCart = () => {
     if (product.quantity_in_stock > 0) {
       addToCart(product, quantity);
+    }
+  };
+
+  const handleWishlistToggle = async () => {
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+
+    if (!product) return;
+
+    try {
+      if (isInWishlist) {
+        await wishlistAPI.removeFromWishlistByProduct(product.id);
+        setIsInWishlist(false);
+      } else {
+        await wishlistAPI.addToWishlist({
+          product_id: product.id,
+          product_name: product.name,
+          price: product.price,
+          image_url: product.image_url || '',
+          description: product.description || ''
+        });
+        setIsInWishlist(true);
+      }
+    } catch (error) {
+      console.error('Error updating wishlist:', error);
     }
   };
 
@@ -332,6 +382,24 @@ function ProductDetail() {
                 <button onClick={incrementQuantity} style={{ padding: '5px 10px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem' }} disabled={quantity >= product.quantity_in_stock}>+</button>
               </div>
               <button className="add-to-cart-button" onClick={handleAddToCart} style={{ padding: '10px 20px', backgroundColor: '#4a90e2', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1rem' }}>Add to Cart</button>
+              <button 
+                className={`wishlist-button-detail ${isInWishlist ? 'active' : ''}`}
+                onClick={handleWishlistToggle}
+                title={isInWishlist ? 'Remove from wishlist' : 'Add to wishlist'}
+                style={{ 
+                  padding: '10px 15px', 
+                  background: 'white', 
+                  border: '1px solid #ddd', 
+                  borderRadius: '4px', 
+                  cursor: 'pointer', 
+                  fontSize: '1.5rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                {isInWishlist ? '❤️' : '🤍'}
+              </button>
             </div>
           </div>
         </div>

@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
+import { wishlistAPI } from './api';
 import './ProductCard.css';
 
 function ProductCard({ product }) {
@@ -9,11 +10,60 @@ function ProductCard({ product }) {
   const quantity = product.quantity_in_stock ?? 1;
   const isOutOfStock = quantity === 0;
   const { addToCart } = useCart();
+  const [isInWishlist, setIsInWishlist] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    const authStatus = localStorage.getItem('is_authenticated') === 'true';
+    setIsAuthenticated(authStatus);
+    if (authStatus) {
+      checkWishlistStatus();
+    }
+  }, [product.id]);
+
+  const checkWishlistStatus = async () => {
+    try {
+      const response = await wishlistAPI.getWishlist();
+      const items = response.data.items || [];
+      const found = items.some(item => item.product_id === product.id);
+      setIsInWishlist(found);
+    } catch (error) {
+      // Silently fail - user might not have wishlist yet
+      setIsInWishlist(false);
+    }
+  };
 
   const handleAddToCart = (e) => {
     e.stopPropagation(); // Prevent navigation when clicking add to cart
     if (!isOutOfStock) {
       addToCart(product);
+    }
+  };
+
+  const handleWishlistToggle = async (e) => {
+    e.stopPropagation(); // Prevent navigation when clicking wishlist button
+    
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+
+    try {
+      if (isInWishlist) {
+        await wishlistAPI.removeFromWishlistByProduct(product.id);
+        setIsInWishlist(false);
+      } else {
+        await wishlistAPI.addToWishlist({
+          product_id: product.id,
+          product_name: product.name,
+          price: product.price,
+          image_url: product.image_url || '',
+          description: product.description || ''
+        });
+        setIsInWishlist(true);
+      }
+    } catch (error) {
+      console.error('Error updating wishlist:', error);
     }
   };
 
@@ -60,6 +110,13 @@ function ProductCard({ product }) {
           }}
         />
         {isOutOfStock && <div className="stock-badge">Out of Stock</div>}
+        <button
+          className={`wishlist-button ${isInWishlist ? 'active' : ''}`}
+          onClick={handleWishlistToggle}
+          title={isInWishlist ? 'Remove from wishlist' : 'Add to wishlist'}
+        >
+          {isInWishlist ? '❤️' : '🤍'}
+        </button>
       </div>
       <div className="product-info">
         <h3 className="product-name">{product.name}</h3>

@@ -26,6 +26,9 @@ import Dashboard from './components/ProductManager/Dashboard';
 import ProductManagement from './components/ProductManager/ProductManagement';
 import CategoryManagement from './components/ProductManager/CategoryManagement';
 import StockManagement from './components/ProductManager/StockManagement';
+import SupportChat from './components/SupportChat/SupportChat';
+import SupportAgentDashboard from './components/SupportAgent/SupportAgentDashboard';
+import Wishlist from './components/Wishlist'; 
 
 function App() {
   return (
@@ -41,6 +44,7 @@ function App() {
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/order-history" element={<OrderHistory />} />
+            <Route path="/wishlist" element={<Wishlist />} />
             <Route path="/products" element={<Products />} />
 
             {/* --- YENİ EKLENEN ROUTE --- */}
@@ -62,7 +66,10 @@ function App() {
             <Route path="/product-manager/categories" element={<CategoryManagement />} />
             <Route path="/product-manager/orders" element={<OrderManagement />} />
             <Route path="/product-manager/comments" element={<CommentApproval />} />
+            <Route path="/support/dashboard" element={<SupportAgentDashboard />} />
           </Routes>
+          {/* Support Chat Widget - Available on all pages */}
+          <SupportChat />
         </div>
       </Router>
     </CartProvider>

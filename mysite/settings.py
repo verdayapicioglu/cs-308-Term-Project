@@ -28,11 +28,14 @@ TEMPLATES = [
 
 
 INSTALLED_APPS = [
+    'daphne',  # ASGI server - must be first
     'django.contrib.admin', 'django.contrib.auth', 'django.contrib.contenttypes',
     'django.contrib.sessions', 'django.contrib.messages', 'django.contrib.staticfiles',
+    'channels',  # Django Channels for WebSocket
     'core',  # your app
     'api',
     'product_manager_api',
+    'support_agents',  # Support agents chat system
     'rest_framework',
     'corsheaders',  # CORS support for React frontend
 ]
@@ -100,6 +103,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'mysite.wsgi.application'
+ASGI_APPLICATION = 'mysite.asgi.application'
 
 
 # Database
@@ -160,6 +164,8 @@ REST_FRAMEWORK = {
         'rest_framework.renderers.JSONRenderer',
     ],
     'DEFAULT_PARSER_CLASSES': [
+        'rest_framework.parsers.MultiPartParser',
+        'rest_framework.parsers.FormParser',
         'rest_framework.parsers.JSONParser',
         'rest_framework.parsers.MultiPartParser',
         'rest_framework.parsers.FormParser',
@@ -225,3 +231,19 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'almiraaygun@gmail.com'
 EMAIL_HOST_PASSWORD = 'jkys ehwm bebl uypn'
 DEFAULT_FROM_EMAIL = 'almiraaygun@gmail.com'
+
+# Channels Configuration
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',  # For development
+        # For production, use Redis:
+        # 'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        # 'CONFIG': {
+        #     "hosts": [('127.0.0.1', 6379)],
+        # },
+    },
+}
+
+# Media files for file uploads
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'

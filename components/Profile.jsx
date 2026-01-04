@@ -141,6 +141,15 @@ function Profile() {
     try {
       setLoading(true);
       setError('');
+      
+      // Check if user is authenticated first
+      const isAuthenticated = localStorage.getItem('is_authenticated') === 'true';
+      if (!isAuthenticated) {
+        // User is not logged in, skip backend call
+        setLoading(false);
+        return;
+      }
+      
       const response = await authAPI.getCurrentUser();
       const userData = response.data;
 
@@ -164,8 +173,13 @@ function Profile() {
       }
     } catch (err) {
       console.error('Failed to load profile from backend:', err);
-      // Continue with local data if backend fails
-      setError('Could not load profile from server. Using local data.');
+      // Only show error if user is authenticated (otherwise it's expected)
+      const isAuthenticated = localStorage.getItem('is_authenticated') === 'true';
+      if (isAuthenticated) {
+        // Only show error if user is logged in but backend call failed
+        setError('Could not load profile from server. Using local data.');
+      }
+      // If not authenticated, silently use local data
     } finally {
       setLoading(false);
     }

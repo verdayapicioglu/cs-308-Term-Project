@@ -16,7 +16,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 
-from .models import Order, OrderItem, UserProfile, Cart, CartItem
+from .models import Order, OrderItem, UserProfile, Cart, CartItem, Wishlist, WishlistItem
 from product_manager_api.models import Product
 from .serializers import (
     UserRegistrationSerializer,
@@ -24,7 +24,8 @@ from .serializers import (
     PasswordResetRequestSerializer,
     PasswordResetConfirmSerializer,
     UserSerializer,
-    CartItemSerializer
+    CartItemSerializer,
+    WishlistItemSerializer
 )
 
 
@@ -382,6 +383,12 @@ def get_or_create_cart(user):
     return cart
 
 
+def get_or_create_wishlist(user):
+    """Helper function to get or create a wishlist for a user"""
+    wishlist, created = Wishlist.objects.get_or_create(user=user)
+    return wishlist
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_cart(request):
@@ -651,4 +658,118 @@ def merge_cart(request):
         return Response({
             'error': 'Failed to merge cart',
             'detail': str(e)
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)   
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# Wishlist endpoints
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_wishlist(request):
+    """Get user's wishlist items"""
+    try:
+        wishlist = get_or_create_wishlist(request.user)
+        items = wishlist.items.all()
+        serializer = WishlistItemSerializer(items, many=True)
+        return Response({
+            'items': serializer.data,
+            'count': items.count()
+        }, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({
+            'error': 'Failed to fetch wishlist',
+            'detail': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def add_to_wishlist(request):
+    """Add item to wishlist"""
+    try:
+        wishlist = get_or_create_wishlist(request.user)
+        product_id = request.data.get('product_id')
+        product_name = request.data.get('product_name', '')
+        price = request.data.get('price', 0)
+        image_url = request.data.get('image_url', '')
+        description = request.data.get('description', '')
+
+        if not product_id:
+            return Response({
+                'error': 'product_id is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if item already exists in wishlist
+        wishlist_item, created = WishlistItem.objects.get_or_create(
+            wishlist=wishlist,
+            product_id=product_id,
+            defaults={
+                'product_name': product_name,
+                'price': price,
+                'image_url': image_url,
+                'description': description,
+            }
+        )
+
+        if not created:
+            return Response({
+                'message': 'Item already in wishlist',
+                'item': WishlistItemSerializer(wishlist_item).data
+            }, status=status.HTTP_200_OK)
+
+        serializer = WishlistItemSerializer(wishlist_item)
+        return Response({
+            'message': 'Item added to wishlist',
+            'item': serializer.data
+        }, status=status.HTTP_201_CREATED)
+
+    except Exception as e:
+        return Response({
+            'error': 'Failed to add item to wishlist',
+            'detail': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def remove_from_wishlist(request, item_id):
+    """Remove item from wishlist"""
+    try:
+        wishlist = get_or_create_wishlist(request.user)
+        wishlist_item = WishlistItem.objects.get(id=item_id, wishlist=wishlist)
+        wishlist_item.delete()
+        return Response({
+            'message': 'Item removed from wishlist'
+        }, status=status.HTTP_200_OK)
+
+    except WishlistItem.DoesNotExist:
+        return Response({
+            'error': 'Wishlist item not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({
+            'error': 'Failed to remove item from wishlist',
+            'detail': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def remove_from_wishlist_by_product(request, product_id):
+    """Remove item from wishlist by product_id"""
+    try:
+        wishlist = get_or_create_wishlist(request.user)
+        wishlist_item = WishlistItem.objects.get(product_id=product_id, wishlist=wishlist)
+        wishlist_item.delete()
+        return Response({
+            'message': 'Item removed from wishlist'
+        }, status=status.HTTP_200_OK)
+
+    except WishlistItem.DoesNotExist:
+        return Response({
+            'error': 'Wishlist item not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({
+            'error': 'Failed to remove item from wishlist',
+            'detail': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

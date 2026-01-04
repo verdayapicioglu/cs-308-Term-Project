@@ -24,5 +24,11 @@ urlpatterns = [
     path('cart/clear/', views.clear_cart, name='clear_cart'),
     path('cart/item/<int:item_id>/', views.update_cart_item, name='update_cart_item'),
     path('cart/item/<int:item_id>/remove/', views.remove_from_cart, name='remove_from_cart'),
+    
+    # Wishlist endpoints
+    path('wishlist/', views.get_wishlist, name='get_wishlist'),
+    path('wishlist/add/', views.add_to_wishlist, name='add_to_wishlist'),
+    path('wishlist/item/<int:item_id>/remove/', views.remove_from_wishlist, name='remove_from_wishlist'),
+    path('wishlist/product/<int:product_id>/remove/', views.remove_from_wishlist_by_product, name='remove_from_wishlist_by_product'),
 ]
 

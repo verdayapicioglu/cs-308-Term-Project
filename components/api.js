@@ -183,6 +183,8 @@ export function clearUserData() {
   localStorage.removeItem('is_admin');
   localStorage.removeItem('is_staff');
   localStorage.removeItem('is_superuser');
+  // Clear cart items when user logs out
+  localStorage.removeItem('cart_items');
 }
 
 /**
@@ -246,6 +248,49 @@ export const cartAPI = {
     return apiRequest('/cart/merge/', {
       method: 'POST',
       body: JSON.stringify({ items: localItems }),
+    });
+  },
+};
+
+/**
+ * Wishlist API
+ */
+export const wishlistAPI = {
+  /**
+   * Get user's wishlist items
+   */
+  async getWishlist() {
+    return apiRequest('/wishlist/');
+  },
+
+  /**
+   * Add item to wishlist
+   * @param {Object} itemData - { product_id, product_name, price, image_url, description }
+   */
+  async addToWishlist(itemData) {
+    return apiRequest('/wishlist/add/', {
+      method: 'POST',
+      body: JSON.stringify(itemData),
+    });
+  },
+
+  /**
+   * Remove item from wishlist
+   * @param {number} itemId - Wishlist item ID
+   */
+  async removeFromWishlist(itemId) {
+    return apiRequest(`/wishlist/item/${itemId}/remove/`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
+   * Remove item from wishlist by product_id
+   * @param {number} productId - Product ID
+   */
+  async removeFromWishlistByProduct(productId) {
+    return apiRequest(`/wishlist/product/${productId}/remove/`, {
+      method: 'DELETE',
     });
   },
 };
