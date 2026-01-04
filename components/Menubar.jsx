@@ -59,10 +59,10 @@ export default function Menubar() {
       setIsAuthenticated(false);
       setIsAdmin(false);
       setUserEmail("");
-      
+
       // Dispatch custom event for chat widget to close
       window.dispatchEvent(new Event('storage'));
-      
+
       // Navigate to login
       navigate("/login");
     } catch (error) {
@@ -72,10 +72,10 @@ export default function Menubar() {
       setIsAuthenticated(false);
       setIsAdmin(false);
       setUserEmail("");
-      
+
       // Dispatch custom event for chat widget to close
       window.dispatchEvent(new Event('storage'));
-      
+
       navigate("/login");
     }
   };
@@ -96,6 +96,7 @@ export default function Menubar() {
         {isAdmin && (
           <>
             <Link to="/product-manager">Product Manager</Link>
+            <Link to="/support/dashboard">Support Dashboard</Link>
           </>
         )}
       </div>
