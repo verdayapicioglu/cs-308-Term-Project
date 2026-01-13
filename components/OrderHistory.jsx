@@ -11,6 +11,7 @@ function OrderHistory() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [userEmail, setUserEmail] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [showRefundModal, setShowRefundModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [refundReason, setRefundReason] = useState('');
@@ -129,11 +130,11 @@ function OrderHistory() {
   const canRequestRefund = (order, item) => {
     if (order.status !== 'delivered') return false;
     if (!order.delivery_date) return false;
-    
+
     const deliveryDate = new Date(order.delivery_date);
     const today = new Date();
     const daysSinceDelivery = Math.floor((today - deliveryDate) / (1000 * 60 * 60 * 24));
-    
+
     return daysSinceDelivery <= 30;
   };
 
@@ -165,8 +166,14 @@ function OrderHistory() {
         reason: refundReason,
         customer_email: userEmail
       });
-      
-      alert('Refund request submitted successfully!');
+
+
+      // Show success message instead of alert
+      setSuccessMessage('Refund request submitted successfully! We will process it shortly.');
+
+      // Clear success message after 5 seconds
+      setTimeout(() => setSuccessMessage(''), 5000);
+
       setShowRefundModal(false);
       setSelectedItem(null);
       setRefundReason('');
@@ -187,11 +194,11 @@ function OrderHistory() {
       // Convert order format to match invoiceUtils expected format
       const addressParts = order.delivery_address ? order.delivery_address.split(',') : [];
       const totalPrice = parseFloat(order.total_price || 0);
-      
+
       // Calculate subtotal and tax (assuming 18% VAT included in total)
       const subtotal = totalPrice / 1.18;
       const tax = totalPrice - subtotal;
-      
+
       const invoiceOrder = {
         id: order.delivery_id,
         customerName: order.customer_name,
@@ -273,6 +280,12 @@ function OrderHistory() {
         {error && (
           <div className="error-message">
             {error}
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="success-message">
+            {successMessage}
           </div>
         )}
 
@@ -395,7 +408,7 @@ function OrderHistory() {
                 <p><strong>Price:</strong> {formatCurrency(selectedItem.item.price)}</p>
                 <p><strong>Available Quantity:</strong> {selectedItem.item.quantity}</p>
               </div>
-              
+
               <div className="form-group">
                 <label>Quantity to Refund:</label>
                 <input

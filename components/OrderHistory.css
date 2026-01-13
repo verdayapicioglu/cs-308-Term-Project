@@ -58,6 +58,7 @@
   line-height: 1.5;
 }
 
+
 .error-message {
   padding: 16px 20px;
   margin-bottom: 24px;
@@ -67,6 +68,17 @@
   color: #c33;
   font-size: 14px;
 }
+
+.success-message {
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  background-color: #d1e7dd;
+  border: 1px solid #badbcc;
+  border-radius: 12px;
+  color: #0f5132;
+  font-size: 14px;
+}
+
 
 .loading-message {
   text-align: center;
@@ -405,154 +417,156 @@
 }
 
 .item-name {
-    flex: 2;
-    font-weight: 500;
+  flex: 2;
+  font-weight: 500;
 }
+
 .item-qty {
-    flex: 0.5;
-    text-align: center;
-    color: #6b5b7a;
+  flex: 0.5;
+  text-align: center;
+  color: #6b5b7a;
 }
+
 .item-price {
-    flex: 1;
-    text-align: right;
-    font-weight: 600;
-    color: #5c0f4e;
+  flex: 1;
+  text-align: right;
+  font-weight: 600;
+  color: #5c0f4e;
 }
 
 /* Refund Button */
 .refund-button {
-    background: #ef4444;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    padding: 6px 12px;
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    margin-left: 8px;
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-left: 8px;
 }
 
 .refund-button:hover {
-    background: #dc2626;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
+  background: #dc2626;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
 }
 
 /* Modal Styles */
 .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
 }
 
 .modal-content {
-    background: white;
-    border-radius: 12px;
-    padding: 24px;
-    max-width: 500px;
-    width: 90%;
-    max-height: 90vh;
-    overflow-y: auto;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
 }
 
 .modal-content h2 {
-    margin: 0 0 20px 0;
-    color: #2d1b3d;
-    font-size: 24px;
+  margin: 0 0 20px 0;
+  color: #2d1b3d;
+  font-size: 24px;
 }
 
 .refund-modal-info {
-    background: #f9fafb;
-    border-radius: 8px;
-    padding: 16px;
-    margin-bottom: 20px;
+  background: #f9fafb;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
 }
 
 .refund-modal-info p {
-    margin: 8px 0;
-    color: #374151;
-    font-size: 14px;
+  margin: 8px 0;
+  color: #374151;
+  font-size: 14px;
 }
 
 .form-group {
-    margin-bottom: 20px;
+  margin-bottom: 20px;
 }
 
 .form-group label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: 600;
-    color: #374151;
-    font-size: 14px;
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #374151;
+  font-size: 14px;
 }
 
 .form-group input,
 .form-group textarea {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    font-size: 14px;
-    font-family: inherit;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
 }
 
 .form-group input:focus,
 .form-group textarea:focus {
-    outline: none;
-    border-color: #5c0f4e;
-    box-shadow: 0 0 0 3px rgba(92, 15, 78, 0.1);
+  outline: none;
+  border-color: #5c0f4e;
+  box-shadow: 0 0 0 3px rgba(92, 15, 78, 0.1);
 }
 
 .modal-actions {
-    display: flex;
-    gap: 12px;
-    justify-content: flex-end;
-    margin-top: 24px;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 24px;
 }
 
 .cancel-button,
 .submit-button {
-    padding: 10px 20px;
-    border-radius: 6px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
 }
 
 .cancel-button {
-    background: #f3f4f6;
-    color: #374151;
+  background: #f3f4f6;
+  color: #374151;
 }
 
 .cancel-button:hover:not(:disabled) {
-    background: #e5e7eb;
+  background: #e5e7eb;
 }
 
 .submit-button {
-    background: #5c0f4e;
-    color: white;
+  background: #5c0f4e;
+  color: white;
 }
 
 .submit-button:hover:not(:disabled) {
-    background: #4a0c3e;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(92, 15, 78, 0.3);
+  background: #4a0c3e;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(92, 15, 78, 0.3);
 }
 
 .cancel-button:disabled,
 .submit-button:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
+  opacity: 0.6;
+  cursor: not-allowed;
 }
