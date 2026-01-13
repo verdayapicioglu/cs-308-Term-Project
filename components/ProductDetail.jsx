@@ -18,6 +18,10 @@ function ProductDetail() {
   const [error, setError] = useState('');
   const { addToCart } = useCart();
   const [quantity, setQuantity] = useState(1);
+  
+  // Calculate stock status
+  const isOutOfStock = product?.quantity_in_stock === 0;
+  const isLowStock = product?.quantity_in_stock > 0 && product?.quantity_in_stock <= 3; // Low stock threshold: 3 or fewer units
 
   // Review & Rating state
   const [ratingType, setRatingType] = useState('stars'); // 'stars' or 'points'
@@ -384,7 +388,24 @@ function ProductDetail() {
                 <input type="number" value={quantity} readOnly style={{ width: '40px', textAlign: 'center', border: 'none', fontSize: '1rem', MozAppearance: 'textfield' }} />
                 <button onClick={incrementQuantity} style={{ padding: '5px 10px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem' }} disabled={quantity >= product.quantity_in_stock}>+</button>
               </div>
-              <button className="add-to-cart-button" onClick={handleAddToCart} style={{ padding: '10px 20px', backgroundColor: '#4a90e2', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1rem' }}>Add to Cart</button>
+              <button 
+                className="add-to-cart-button" 
+                onClick={handleAddToCart} 
+                disabled={isOutOfStock}
+                style={{ 
+                  padding: '10px 20px', 
+                  backgroundColor: isOutOfStock ? '#ccc' : '#4a90e2', 
+                  color: 'white', 
+                  border: 'none', 
+                  borderRadius: '4px', 
+                  cursor: isOutOfStock ? 'not-allowed' : 'pointer', 
+                  fontWeight: 'bold', 
+                  fontSize: '1rem',
+                  opacity: isOutOfStock ? 0.6 : 1
+                }}
+              >
+                {isOutOfStock ? 'Out of Stock' : 'Add to Cart'}
+              </button>
               <button 
                 className={`wishlist-button-detail ${isInWishlist ? 'active' : ''}`}
                 onClick={handleWishlistToggle}
@@ -403,6 +424,11 @@ function ProductDetail() {
               >
                 {isInWishlist ? '❤️' : '🤍'}
               </button>
+              {isLowStock && product.quantity_in_stock > 0 && (
+                <div className="low-stock-warning-detail" style={{ marginTop: '10px', padding: '8px', backgroundColor: '#fff3cd', border: '1px solid #ffeeba', borderRadius: '4px', color: '#856404' }}>
+                  ⚠️ Last {product.quantity_in_stock} {product.quantity_in_stock === 1 ? 'unit' : 'units'} remaining!
+                </div>
+              )}
             </div>
           </div>
         </div>
