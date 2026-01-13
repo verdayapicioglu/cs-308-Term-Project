@@ -30,60 +30,32 @@ from .serializers import (
 
 
 # ==================== INVOICE FUNCTIONS ====================
-
-def generate_invoice_pdf(order):
-    """Order bilgisinden PDF dosyası oluşturan fonksiyon."""
-    buffer = io.BytesIO()
-    p = canvas.Canvas(buffer, pagesize=letter)
-
-    # Başlık
-    p.setFont("Helvetica-Bold", 18)
-    p.drawString(50, 750, "Pet Store Invoice")
-
-    # Order bilgileri
-    p.setFont("Helvetica", 12)
-    p.drawString(50, 720, f"Order ID: {order.id}")
-    p.drawString(50, 700, f"Customer: {order.user.email}")
-    p.drawString(50, 680, f"Date: {order.created_at.strftime('%Y-%m-%d')}")
-
-    # Ürün listesi
-    y = 640
-    p.drawString(50, y, "Products:")
-    y -= 20
-
-    total = 0
-
-    for item in order.items.all():
-        line = f"{item.product_name}   x{item.quantity}   = {item.price * item.quantity} TL"
-        p.drawString(60, y, line)
-        y -= 20
-
-        total += item.price * item.quantity
-
-    # Total fiyat
-    p.drawString(50, y - 10, f"Total: {total} TL")
-
-    p.showPage()
-    p.save()
-
-    buffer.seek(0)
-    return buffer
+# Import invoice generation from product_manager_api to use consistent format
+try:
+    from product_manager_api.views import generate_invoice_pdf
+except ImportError:
+    # Fallback if import fails
+    from backend.product_manager_api.views import generate_invoice_pdf
 
 
 def send_invoice_email(order):
     """Sipariş oluşturulduğunda müşteriye PDF faturayı email ile gönderen fonksiyon."""
     pdf_buffer = generate_invoice_pdf(order)
 
+    # Get delivery_id or id for order reference
+    order_ref = getattr(order, 'delivery_id', None) or getattr(order, 'id', 'N/A')
+    customer_email = getattr(order, 'customer_email', None) or (order.user.email if hasattr(order, 'user') and order.user else None)
+
     email = EmailMessage(
-        subject=f"Your Pet Store Invoice - Order #{order.id}",
+        subject=f"Your PatiHouse Invoice - Order {order_ref}",
         body="Thank you for your order! Your invoice is attached.",
         from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'petstore.orders@gmail.com'),
-        to=[order.user.email],
+        to=[customer_email] if customer_email else [],
     )
 
     # PDF ekle
     email.attach(
-        filename=f"invoice_{order.id}.pdf",
+        filename=f"invoice_{order_ref}.pdf",
         content=pdf_buffer.getvalue(),
         mimetype="application/pdf"
     )
@@ -113,6 +85,8 @@ def register(request):
                     'pets_supported': 0,
                 }
             )
+            # Create Wishlist for new user
+            Wishlist.objects.get_or_create(user=user)
             return Response({
                 'message': 'User registered successfully',
                 'user': UserSerializer(user).data

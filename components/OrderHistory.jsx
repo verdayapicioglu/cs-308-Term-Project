@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import './OrderHistory.css';
 import { productManagerAPI } from './api';
 import { authAPI } from './api';
+import { generateInvoicePdf } from './invoiceUtils';
 
 function OrderHistory() {
   const navigate = useNavigate();
@@ -10,6 +11,12 @@ function OrderHistory() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [userEmail, setUserEmail] = useState('');
+  const [showRefundModal, setShowRefundModal] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [refundReason, setRefundReason] = useState('');
+  const [refundQuantity, setRefundQuantity] = useState(1);
+  const [refundLoading, setRefundLoading] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
 
   useEffect(() => {
     // Check if user is authenticated
@@ -84,6 +91,7 @@ function OrderHistory() {
       'processing': 'status-processing',
       'in-transit': 'status-in-transit',
       'delivered': 'status-delivered',
+      'cancelled': 'status-cancelled',
     };
     return statusMap[status.toLowerCase()] || 'status-unknown';
   };
@@ -93,6 +101,7 @@ function OrderHistory() {
       'processing': 'Processing',
       'in-transit': 'In Transit',
       'delivered': 'Delivered',
+      'cancelled': 'Cancelled',
     };
     return labelMap[status.toLowerCase()] || status;
   };
@@ -115,6 +124,120 @@ function OrderHistory() {
       style: 'currency',
       currency: 'TRY',
     }).format(amount);
+  };
+
+  const canRequestRefund = (order, item) => {
+    if (order.status !== 'delivered') return false;
+    if (!order.delivery_date) return false;
+    
+    const deliveryDate = new Date(order.delivery_date);
+    const today = new Date();
+    const daysSinceDelivery = Math.floor((today - deliveryDate) / (1000 * 60 * 60 * 24));
+    
+    return daysSinceDelivery <= 30;
+  };
+
+  const handleRefundClick = (order, item) => {
+    setSelectedItem({ order, item });
+    setRefundQuantity(1);
+    setRefundReason('');
+    setShowRefundModal(true);
+  };
+
+  const handleRefundSubmit = async () => {
+    if (!refundReason.trim()) {
+      alert('Please provide a reason for the refund request');
+      return;
+    }
+
+    if (refundQuantity < 1 || refundQuantity > selectedItem.item.quantity) {
+      alert(`Quantity must be between 1 and ${selectedItem.item.quantity}`);
+      return;
+    }
+
+    setRefundLoading(true);
+    try {
+      await productManagerAPI.createRefundRequest({
+        order_id: selectedItem.order.delivery_id,
+        order_item_id: selectedItem.item.id,
+        product_id: selectedItem.item.product_id,
+        quantity: refundQuantity,
+        reason: refundReason,
+        customer_email: userEmail
+      });
+      
+      alert('Refund request submitted successfully!');
+      setShowRefundModal(false);
+      setSelectedItem(null);
+      setRefundReason('');
+      setRefundQuantity(1);
+      loadOrderHistory(); // Reload orders
+    } catch (err) {
+      const errorMessage = err.response?.data?.error || err.message || 'Failed to submit refund request';
+      console.error('Refund request error:', err);
+      console.error('Error details:', err.response?.data);
+      alert(`Error: ${errorMessage}`);
+    } finally {
+      setRefundLoading(false);
+    }
+  };
+
+  const handleDownloadInvoice = (order) => {
+    try {
+      // Convert order format to match invoiceUtils expected format
+      const addressParts = order.delivery_address ? order.delivery_address.split(',') : [];
+      const totalPrice = parseFloat(order.total_price || 0);
+      
+      // Calculate subtotal and tax (assuming 18% VAT included in total)
+      const subtotal = totalPrice / 1.18;
+      const tax = totalPrice - subtotal;
+      
+      const invoiceOrder = {
+        id: order.delivery_id,
+        customerName: order.customer_name,
+        address: {
+          line1: addressParts[0]?.trim() || order.delivery_address || '',
+          line2: addressParts[1]?.trim() || '',
+          city: addressParts[addressParts.length - 1]?.trim() || '',
+          zip: '',
+          country: 'Turkey'
+        },
+        date: order.order_date || new Date().toISOString().split('T')[0],
+        paymentMethod: 'Credit Card', // Default payment method
+        items: (order.items || []).map(item => ({
+          name: item.product_name,
+          quantity: item.quantity,
+          price: parseFloat(item.price)
+        })),
+        subtotal: subtotal,
+        tax: tax,
+        total: totalPrice
+      };
+
+      generateInvoicePdf(invoiceOrder);
+    } catch (err) {
+      console.error('Error generating invoice:', err);
+      alert('Failed to generate invoice. Please try again.');
+    }
+  };
+
+  const handleCancelOrder = async (order) => {
+    if (!window.confirm(`Are you sure you want to cancel order ${order.delivery_id}?`)) {
+      return;
+    }
+
+    setCancelLoading(true);
+    try {
+      await productManagerAPI.cancelOrder(order.delivery_id, userEmail);
+      alert('Order cancelled successfully!');
+      loadOrderHistory(); // Reload orders
+    } catch (err) {
+      const errorMessage = err.response?.data?.error || err.message || 'Failed to cancel order';
+      console.error('Cancel order error:', err);
+      alert(`Error: ${errorMessage}`);
+    } finally {
+      setCancelLoading(false);
+    }
   };
 
   if (loading) {
@@ -189,6 +312,15 @@ function OrderHistory() {
                             <span className="item-name">{item.product_name}</span>
                             <span className="item-qty">x{item.quantity}</span>
                             <span className="item-price">{formatCurrency(item.price)}</span>
+                            {canRequestRefund(order, item) && (
+                              <button
+                                className="refund-button"
+                                onClick={() => handleRefundClick(order, item)}
+                                title="Request refund for this item"
+                              >
+                                Request Refund
+                              </button>
+                            )}
                           </div>
                         ))
                       ) : (
@@ -227,9 +359,82 @@ function OrderHistory() {
                     <span className="total-label">Total</span>
                     <span className="total-amount">{formatCurrency(order.total_price)}</span>
                   </div>
+                  <div className="order-actions">
+                    {order.status === 'processing' && (
+                      <button
+                        className="cancel-order-button"
+                        onClick={() => handleCancelOrder(order)}
+                        disabled={cancelLoading}
+                        title="Cancel this order"
+                      >
+                        {cancelLoading ? 'Cancelling...' : '❌ Cancel Order'}
+                      </button>
+                    )}
+                    <button
+                      className="download-invoice-button"
+                      onClick={() => handleDownloadInvoice(order)}
+                      title="Download Invoice PDF"
+                    >
+                      📄 Download Invoice
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Refund Request Modal */}
+        {showRefundModal && selectedItem && (
+          <div className="modal-overlay" onClick={() => setShowRefundModal(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <h2>Request Refund</h2>
+              <div className="refund-modal-info">
+                <p><strong>Product:</strong> {selectedItem.item.product_name}</p>
+                <p><strong>Order ID:</strong> {selectedItem.order.delivery_id}</p>
+                <p><strong>Price:</strong> {formatCurrency(selectedItem.item.price)}</p>
+                <p><strong>Available Quantity:</strong> {selectedItem.item.quantity}</p>
+              </div>
+              
+              <div className="form-group">
+                <label>Quantity to Refund:</label>
+                <input
+                  type="number"
+                  min="1"
+                  max={selectedItem.item.quantity}
+                  value={refundQuantity}
+                  onChange={(e) => setRefundQuantity(parseInt(e.target.value) || 1)}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Reason for Refund:</label>
+                <textarea
+                  value={refundReason}
+                  onChange={(e) => setRefundReason(e.target.value)}
+                  placeholder="Please explain why you want to return this product..."
+                  rows="4"
+                  required
+                />
+              </div>
+
+              <div className="modal-actions">
+                <button
+                  className="cancel-button"
+                  onClick={() => setShowRefundModal(false)}
+                  disabled={refundLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="submit-button"
+                  onClick={handleRefundSubmit}
+                  disabled={refundLoading}
+                >
+                  {refundLoading ? 'Submitting...' : 'Submit Request'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

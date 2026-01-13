@@ -36,6 +36,7 @@ urlpatterns = [
 
     # 3. En son ID parametresi alanlar (Wildcard)
     path('orders/<str:delivery_id>/status/', views.order_update_status, name='order_update_status'),
+    path('orders/<str:delivery_id>/cancel/', views.cancel_order, name='cancel_order'),
     path('orders/<str:delivery_id>/', views.order_detail, name='order_detail'),
 
     
@@ -43,4 +44,14 @@ urlpatterns = [
     path('comments/', views.comment_list, name='comment_list'),
     path('comments/create/', views.review_create, name='review_create'),
     path('comments/<int:comment_id>/approve/', views.comment_approve, name='comment_approve'),
+    
+    # Sales Manager Endpoints
+    path('sales/discounts/', views.set_product_discount, name='set_product_discount'),
+    path('sales/invoices/', views.get_invoices, name='get_invoices'),
+    path('sales/revenue/', views.get_revenue_profit, name='get_revenue_profit'),
+    
+    # Refund/Return Management
+    path('refunds/create/', views.create_refund_request, name='create_refund_request'),
+    path('refunds/', views.refund_request_list, name='refund_request_list'),
+    path('refunds/<int:refund_id>/approve/', views.approve_refund_request, name='approve_refund_request'),
 ]

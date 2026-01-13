@@ -231,6 +231,7 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'almiraaygun@gmail.com'
 EMAIL_HOST_PASSWORD = 'jkys ehwm bebl uypn'
 DEFAULT_FROM_EMAIL = 'almiraaygun@gmail.com'
+SERVER_EMAIL = 'almiraaygun@gmail.com'
 
 # Channels Configuration
 CHANNEL_LAYERS = {

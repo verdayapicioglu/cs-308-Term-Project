@@ -512,27 +512,103 @@ def create_order(request):
 
 
 def generate_invoice_pdf(order):
-    """Generate a simple PDF invoice for a single-order item"""
+    """Generate a PDF invoice with PatiHouse format - supports OrderItem model"""
     buffer = io.BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
 
-    p.setFont("Helvetica-Bold", 18)
-    p.drawString(50, 750, "Pet Store Invoice")
+    # Header
+    p.setFont("Helvetica-Bold", 20)
+    p.drawString(50, 750, "PatiHouse")
+    
+    p.setFont("Helvetica-Bold", 14)
+    p.drawString(450, 750, "INVOICE")
 
-    p.setFont("Helvetica", 12)
-    p.drawString(50, 720, f"Order ID: {order.delivery_id}")
-    p.drawString(50, 700, f"Customer: {order.customer_name} ({order.customer_email})")
-    p.drawString(50, 680, f"Date: {order.order_date.strftime('%Y-%m-%d')}")
+    # Order Info
+    p.setFont("Helvetica", 10)
+    p.drawString(50, 720, f"Invoice No: {order.delivery_id}")
+    order_date = order.order_date.strftime('%Y-%m-%d') if hasattr(order.order_date, 'strftime') else str(order.order_date)
+    p.drawString(50, 705, f"Date: {order_date}")
 
-    y = 640
-    p.drawString(50, y, "Products:")
+    # Customer Info
+    p.setFont("Helvetica-Bold", 11)
+    p.drawString(50, 660, "BILLED TO:")
+    p.setFont("Helvetica", 10)
+    p.drawString(50, 645, order.customer_name or 'Guest')
+    p.drawString(50, 630, order.customer_email or '')
+    if hasattr(order, 'delivery_address') and order.delivery_address:
+        # Split address if it's too long
+        addr_lines = order.delivery_address.split(',')[:2]
+        for i, line in enumerate(addr_lines):
+            p.drawString(50, 615 - (i * 15), line.strip())
+
+    # Products Table Header
+    y = 570 if hasattr(order, 'delivery_address') and order.delivery_address else 600
+    p.setFont("Helvetica-Bold", 10)
+    p.drawString(50, y, "Item")
+    p.drawString(350, y, "Quantity")
+    p.drawString(420, y, "Unit Price")
+    p.drawString(500, y, "Total")
+    
+    # Draw line
+    p.line(50, y - 5, 550, y - 5)
+    
+    # Products - Support both OrderItem model and legacy single product
+    y -= 25
+    p.setFont("Helvetica", 10)
+    total = 0
+    
+    # Check if order has items (OrderItem model)
+    if hasattr(order, 'items') and hasattr(order.items, 'all'):
+        for item in order.items.all():
+            item_total = float(item.price) * item.quantity
+            total += item_total
+            p.drawString(50, y, item.product_name)
+            p.drawString(350, y, str(item.quantity))
+            p.drawString(420, y, f"{float(item.price):.2f} TRY")
+            p.drawString(500, y, f"{item_total:.2f} TRY")
+            y -= 20
+    # Legacy support for single product_name field
+    elif hasattr(order, 'product_name') and hasattr(order, 'quantity'):
+        item_total = float(order.total_price)
+        total = item_total
+        p.drawString(50, y, order.product_name)
+        p.drawString(350, y, str(order.quantity))
+        unit_price = float(order.total_price) / order.quantity if order.quantity > 0 else 0
+        p.drawString(420, y, f"{unit_price:.2f} TRY")
+        p.drawString(500, y, f"{item_total:.2f} TRY")
+        y -= 20
+    else:
+        # Fallback: just show total
+        total = float(order.total_price) if hasattr(order, 'total_price') else 0
+        p.drawString(50, y, "Order Items")
+        p.drawString(500, y, f"{total:.2f} TRY")
+        y -= 20
+
+    # Totals
+    y -= 10
+    p.line(50, y, 550, y)
     y -= 20
-
-    line = f"{order.product_name}  x{order.quantity}  = {order.total_price} TL"
-    p.drawString(60, y, line)
-    y -= 30
-
-    p.drawString(50, y, f"Total: {order.total_price} TL")
+    
+    subtotal = total / 1.18
+    tax = total - subtotal
+    
+    p.setFont("Helvetica", 10)
+    p.drawString(400, y, "Subtotal (excl. VAT):")
+    p.drawString(500, y, f"{subtotal:.2f} TRY")
+    y -= 15
+    
+    p.drawString(400, y, "Tax (18%):")
+    p.drawString(500, y, f"{tax:.2f} TRY")
+    y -= 20
+    
+    p.setFont("Helvetica-Bold", 12)
+    p.drawString(400, y, "Total (incl. VAT):")
+    p.drawString(500, y, f"{total:.2f} TRY")
+    
+    # Footer
+    y = 100
+    p.setFont("Helvetica", 10)
+    p.drawString(50, y, "Thank you for shopping with PatiHouse!")
 
     p.showPage()
     p.save()
@@ -546,7 +622,7 @@ def send_invoice_email(order):
     pdf_buffer = generate_invoice_pdf(order)
 
     email = EmailMessage(
-        subject=f"Your Pet Store Invoice - Order {order.delivery_id}",
+        subject=f"Your PatiHouse Invoice - Order {order.delivery_id}",
         body="Thank you for your order! Your invoice is attached.",
         from_email="petstore.orders@example.com",  # proje için dummy hesap
         to=[order.customer_email],

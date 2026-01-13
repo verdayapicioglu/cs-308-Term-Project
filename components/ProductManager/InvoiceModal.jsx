@@ -13,7 +13,7 @@ const InvoiceModal = ({ order, onClose }) => {
             <div className="invoice-modal-content">
                 <div className="invoice-header">
                     <div className="invoice-logo">
-                        <h1>Pet Shop</h1>
+                        <h1>PatiHouse</h1>
                         <p>Premium Pet Supplies</p>
                     </div>
                     <div className="invoice-details">

@@ -98,6 +98,7 @@ export default function Menubar() {
         {isAdmin && (
           <>
             <Link to="/product-manager">Product Manager</Link>
+            <Link to="/sales-manager">Sales Manager</Link>
             <Link to="/support/dashboard">Support Dashboard</Link>
           </>
         )}

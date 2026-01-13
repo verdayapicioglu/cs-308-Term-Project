@@ -15,6 +15,10 @@ from django.db.models.functions import Coalesce
 from django.db import transaction # Import transaction
 from .models import Product # Import Product model
 from django.views.decorators.csrf import csrf_exempt
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+import io
+from django.core.mail import EmailMessage
 
 # Import Review and Order models
 try:
@@ -528,6 +532,7 @@ def order_list(request):
             'customer_name': o.customer_name,
             'customer_email': o.customer_email,
             'items': [{
+                'id': item.id,
                 'product_id': item.product_id,
                 'product_name': item.product_name,
                 'quantity': item.quantity,
@@ -621,6 +626,7 @@ def order_history(request):
                 'customer_name': o.customer_name,
                 'customer_email': o.customer_email,
                 'items': [{
+                    'id': item.id,
                     'product_id': item.product_id,
                     'product_name': item.product_name,
                     'quantity': item.quantity,
@@ -1066,8 +1072,8 @@ def delivery_dashboard_stats(request):
 # =============================
 # Create Order (Frontend Checkout)
 # =============================
-from api.views import send_invoice_email
-from datetime import datetime, date
+# Invoice functions are now in this file, no need to import from api.views
+from datetime import datetime, date, timedelta
 import uuid
 
 @api_view(['POST'])
@@ -1313,3 +1319,840 @@ def user_order_history(request):
         'orders': user_orders,
         'count': len(user_orders)
     }, status=status.HTTP_200_OK)
+
+
+# =============================
+# Sales Manager Endpoints
+# =============================
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def set_product_discount(request):
+    """Set discount on selected products"""
+    try:
+        data = request.data
+        product_ids = data.get('product_ids', [])
+        discount_rate = data.get('discount_rate', 0)
+        discount_start_date = data.get('discount_start_date')
+        discount_end_date = data.get('discount_end_date')
+        
+        if not product_ids:
+            return Response(
+                {'error': 'product_ids is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not (0 <= discount_rate <= 100):
+            return Response(
+                {'error': 'discount_rate must be between 0 and 100'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not discount_start_date or not discount_end_date:
+            return Response(
+                {'error': 'discount_start_date and discount_end_date are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Parse dates
+        try:
+            start_date = datetime.strptime(discount_start_date, '%Y-%m-%d').date()
+            end_date = datetime.strptime(discount_end_date, '%Y-%m-%d').date()
+        except ValueError:
+            return Response(
+                {'error': 'Invalid date format. Use YYYY-MM-DD'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if start_date > end_date:
+            return Response(
+                {'error': 'discount_start_date must be before discount_end_date'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        updated_products = []
+        notified_users = []
+        
+        if not USE_DATABASE or not Product:
+            return Response(
+                {'error': 'Database not available'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        with transaction.atomic():
+            for product_id in product_ids:
+                try:
+                    product = Product.objects.get(id=product_id)
+                    
+                    # Save original price if not already saved
+                    if not product.original_price:
+                        product.original_price = product.price
+                    
+                    # Set discount
+                    product.discount_rate = discount_rate
+                    product.discount_start_date = start_date
+                    product.discount_end_date = end_date
+                    
+                    # Calculate new price (use original_price or current price)
+                    base_price = float(product.original_price) if product.original_price else float(product.price)
+                    new_price = base_price * (1 - float(discount_rate) / 100)
+                    product.price = new_price
+                    product.save()
+                    
+                    updated_products.append({
+                        'id': product.id,
+                        'name': product.name,
+                        'original_price': float(product.original_price) if product.original_price else float(product.price),
+                        'new_price': float(product.price),
+                        'discount_rate': float(discount_rate)
+                    })
+                    
+                    # Notify users who have this product in their wishlist
+                    try:
+                        from api.models import WishlistItem
+                        from django.contrib.auth.models import User
+                        from django.core.mail import send_mail
+                        from django.conf import settings
+                        
+                        wishlist_items = WishlistItem.objects.filter(product_id=product_id)
+                        for wishlist_item in wishlist_items:
+                            user = wishlist_item.wishlist.user
+                            if user.email:
+                                try:
+                                    send_mail(
+                                        subject=f'Discount Alert: {product.name}',
+                                        message=f'Great news! {product.name} is now {discount_rate}% off!\n\n'
+                                               f'Original Price: {product.original_price} TL\n'
+                                               f'New Price: {product.price} TL\n'
+                                               f'Discount Period: {start_date} to {end_date}',
+                                        from_email=settings.DEFAULT_FROM_EMAIL if hasattr(settings, 'DEFAULT_FROM_EMAIL') else 'noreply@petstore.com',
+                                        recipient_list=[user.email],
+                                        fail_silently=True
+                                    )
+                                    notified_users.append(user.email)
+                                except Exception as e:
+                                    print(f"Failed to send email to {user.email}: {e}")
+                    except Exception as e:
+                        print(f"Error notifying wishlist users: {e}")
+                
+                except Product.DoesNotExist:
+                    continue
+                except Exception as e:
+                    print(f"Error processing product {product_id}: {e}")
+                    continue
+        
+        if not updated_products:
+            return Response(
+                {'error': 'No products were updated. Please check if product IDs are valid.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        return Response({
+            'message': 'Discount applied successfully',
+            'updated_products': updated_products,
+            'notified_users_count': len(notified_users),
+            'notified_users': notified_users
+        }, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        import traceback
+        return Response({
+            'error': str(e),
+            'trace': traceback.format_exc()
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ========== ORDER CANCELLATION ==========
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def cancel_order(request, delivery_id):
+    """Cancel an order (only if status is 'processing')"""
+    try:
+        data = request.data
+        customer_email = data.get('customer_email')
+        
+        if not customer_email:
+            return Response(
+                {'error': 'customer_email is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not USE_DATABASE or not Order:
+            return Response(
+                {'error': 'Database not available'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        # Get order
+        try:
+            order = Order.objects.get(delivery_id=delivery_id, customer_email=customer_email)
+        except Order.DoesNotExist:
+            return Response(
+                {'error': 'Order not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Check if order is in 'processing' status
+        if order.status != 'processing':
+            return Response(
+                {'error': f'Order can only be cancelled if it is in "processing" status. Current status: {order.status}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Cancel the order
+        order.status = 'cancelled'
+        order.save()
+        
+        # Return products to stock
+        try:
+            for item in order.items.all():
+                try:
+                    product = Product.objects.select_for_update().get(id=item.product_id)
+                    product.quantity_in_stock += item.quantity
+                    product.save()
+                except Product.DoesNotExist:
+                    print(f"Warning: Product {item.product_id} not found for stock update")
+        except Exception as e:
+            print(f"Warning: Error updating stock for cancelled order: {e}")
+        
+        return Response({
+            'message': 'Order cancelled successfully',
+            'order': {
+                'delivery_id': order.delivery_id,
+                'status': order.status,
+                'cancelled_at': timezone.now().isoformat()
+            }
+        }, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        import traceback
+        return Response({
+            'error': str(e),
+            'trace': traceback.format_exc()
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ========== REFUND/RETURN MANAGEMENT ==========
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def create_refund_request(request):
+    """Create a refund request for a delivered product within 30 days"""
+    try:
+        data = request.data
+        order_id = data.get('order_id')  # delivery_id
+        order_item_id = data.get('order_item_id')  # OrderItem id
+        product_id = data.get('product_id')
+        quantity = int(data.get('quantity', 1))
+        reason = data.get('reason', '')
+        customer_email = data.get('customer_email')
+        
+        if not order_id or not product_id or not customer_email:
+            return Response(
+                {'error': 'order_id, product_id, and customer_email are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not USE_DATABASE or not Order or not OrderItem:
+            return Response(
+                {'error': 'Database not available'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        # Get order
+        try:
+            order = Order.objects.get(delivery_id=order_id, customer_email=customer_email)
+        except Order.DoesNotExist:
+            return Response(
+                {'error': 'Order not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Check if order is delivered
+        if order.status != 'delivered':
+            return Response(
+                {'error': 'Only delivered orders can be refunded'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if delivery_date exists and is within 30 days
+        if not order.delivery_date:
+            return Response(
+                {'error': 'Order delivery date is missing'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        days_since_delivery = (timezone.now().date() - order.delivery_date).days
+        if days_since_delivery > 30:
+            return Response(
+                {'error': f'Refund request must be made within 30 days of delivery. {days_since_delivery} days have passed.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Get order item
+        order_item = None
+        if order_item_id:
+            try:
+                order_item = OrderItem.objects.get(id=order_item_id, order=order, product_id=product_id)
+            except OrderItem.DoesNotExist:
+                return Response(
+                    {'error': 'Order item not found'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        else:
+            # Find order item by product_id
+            order_item = OrderItem.objects.filter(order=order, product_id=product_id).first()
+            if not order_item:
+                return Response(
+                    {'error': 'Product not found in this order'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        
+        # Check if quantity is valid
+        if quantity > order_item.quantity:
+            return Response(
+                {'error': f'Requested quantity ({quantity}) exceeds ordered quantity ({order_item.quantity})'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if there's already a pending refund for this item
+        from .models import RefundRequest
+        existing_refund = RefundRequest.objects.filter(
+            order=order,
+            order_item=order_item,
+            status='pending'
+        ).exists()
+        
+        if existing_refund:
+            return Response(
+                {'error': 'A pending refund request already exists for this item'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Calculate refund amount
+        # IMPORTANT: order_item.price contains the price at time of purchase
+        # If product was bought during a discount campaign, this price includes the discount
+        # Even if the discount campaign ends, refund will use the purchase price (with discount)
+        purchase_price = float(order_item.price)
+        refund_amount = purchase_price * quantity
+        
+        # Create refund request
+        refund_request = RefundRequest.objects.create(
+            order=order,
+            order_item=order_item,
+            product_id=product_id,
+            product_name=order_item.product_name,
+            quantity=quantity,
+            purchase_price=purchase_price,
+            refund_amount=refund_amount,
+            customer_id=order.customer_id,
+            customer_name=order.customer_name,
+            customer_email=customer_email,
+            reason=reason,
+            status='pending'
+        )
+        
+        return Response({
+            'message': 'Refund request created successfully',
+            'refund_request': {
+                'id': refund_request.id,
+                'order_id': order.delivery_id,
+                'product_name': refund_request.product_name,
+                'quantity': refund_request.quantity,
+                'refund_amount': float(refund_request.refund_amount),
+                'status': refund_request.status,
+                'requested_at': refund_request.requested_at.isoformat()
+            }
+        }, status=status.HTTP_201_CREATED)
+    
+    except Exception as e:
+        import traceback
+        return Response({
+            'error': str(e),
+            'trace': traceback.format_exc()
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def refund_request_list(request):
+    """Get list of refund requests (for sales manager or customer)"""
+    try:
+        status_filter = request.query_params.get('status')
+        customer_email = request.query_params.get('customer_email')
+        
+        if not USE_DATABASE:
+            return Response({'refund_requests': [], 'count': 0}, status=status.HTTP_200_OK)
+        
+        from .models import RefundRequest
+        refund_requests_query = RefundRequest.objects.all().select_related('order', 'order_item')
+        
+        if status_filter:
+            refund_requests_query = refund_requests_query.filter(status=status_filter)
+        
+        if customer_email:
+            refund_requests_query = refund_requests_query.filter(customer_email=customer_email)
+        
+        refund_requests = []
+        for rr in refund_requests_query:
+            refund_requests.append({
+                'id': rr.id,
+                'order_id': rr.order.delivery_id,
+                'order_item_id': rr.order_item.id if rr.order_item else None,
+                'product_id': rr.product_id,
+                'product_name': rr.product_name,
+                'quantity': rr.quantity,
+                'purchase_price': float(rr.purchase_price),
+                'refund_amount': float(rr.refund_amount) if rr.refund_amount else None,
+                'customer_id': rr.customer_id,
+                'customer_name': rr.customer_name,
+                'customer_email': rr.customer_email,
+                'reason': rr.reason,
+                'status': rr.status,
+                'evaluated_by': rr.evaluated_by,
+                'evaluation_notes': rr.evaluation_notes,
+                'requested_at': rr.requested_at.isoformat(),
+                'evaluated_at': rr.evaluated_at.isoformat() if rr.evaluated_at else None,
+                'completed_at': rr.completed_at.isoformat() if rr.completed_at else None,
+                'order_date': rr.order.order_date.strftime('%Y-%m-%d'),
+                'delivery_date': rr.order.delivery_date.strftime('%Y-%m-%d') if rr.order.delivery_date else None,
+            })
+        
+        return Response({
+            'refund_requests': refund_requests,
+            'count': len(refund_requests)
+        }, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        import traceback
+        return Response({
+            'error': str(e),
+            'trace': traceback.format_exc()
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])  # TODO: Add IsAdminUser or custom permission
+def approve_refund_request(request, refund_id):
+    """Approve a refund request (Sales Manager)"""
+    try:
+        data = request.data
+        action = data.get('action')  # 'approve' or 'reject'
+        evaluation_notes = data.get('evaluation_notes', '')
+        evaluated_by = data.get('evaluated_by', request.user.username if request.user.is_authenticated else 'System')
+        
+        if not USE_DATABASE:
+            return Response(
+                {'error': 'Database not available'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        from .models import RefundRequest
+        try:
+            refund_request = RefundRequest.objects.select_related('order', 'order_item').get(id=refund_id)
+        except RefundRequest.DoesNotExist:
+            return Response(
+                {'error': 'Refund request not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        if refund_request.status != 'pending':
+            return Response(
+                {'error': f'Refund request is already {refund_request.status}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if action == 'approve':
+            with transaction.atomic():
+                # Update refund request status
+                refund_request.status = 'approved'
+                refund_request.evaluated_by = evaluated_by
+                refund_request.evaluation_notes = evaluation_notes
+                refund_request.evaluated_at = timezone.now()
+                refund_request.save()
+                
+                # Add product back to stock
+                try:
+                    product = Product.objects.select_for_update().get(id=refund_request.product_id)
+                    product.quantity_in_stock += refund_request.quantity
+                    product.save()
+                except Product.DoesNotExist:
+                    # Product might have been deleted, log but continue
+                    print(f"Warning: Product {refund_request.product_id} not found for stock update")
+                
+                # Send email notification
+                try:
+                    from django.core.mail import send_mail
+                    from django.conf import settings
+                    
+                    subject = f'Refund Approved - Order {refund_request.order.delivery_id}'
+                    message = f'''Dear {refund_request.customer_name},
+
+Your refund request for {refund_request.product_name} (Quantity: {refund_request.quantity}) has been approved.
+
+Refund Amount: {refund_request.refund_amount} TL
+Order ID: {refund_request.order.delivery_id}
+
+The refund will be processed to your original payment method within 5-7 business days.
+
+Thank you for your patience.
+
+Best regards,
+Pet Store Team'''
+                    
+                    send_mail(
+                        subject=subject,
+                        message=message,
+                        from_email=settings.DEFAULT_FROM_EMAIL if hasattr(settings, 'DEFAULT_FROM_EMAIL') else 'noreply@petstore.com',
+                        recipient_list=[refund_request.customer_email],
+                        fail_silently=True
+                    )
+                except Exception as e:
+                    print(f"Failed to send refund approval email: {e}")
+        
+        elif action == 'reject':
+            refund_request.status = 'rejected'
+            refund_request.evaluated_by = evaluated_by
+            refund_request.evaluation_notes = evaluation_notes
+            refund_request.evaluated_at = timezone.now()
+            refund_request.save()
+            
+            # Send rejection email
+            try:
+                from django.core.mail import send_mail
+                from django.conf import settings
+                
+                subject = f'Refund Request Update - Order {refund_request.order.delivery_id}'
+                message = f'''Dear {refund_request.customer_name},
+
+Your refund request for {refund_request.product_name} has been reviewed.
+
+Unfortunately, your refund request has been rejected.
+
+Reason: {evaluation_notes if evaluation_notes else 'Please contact support for more information.'}
+
+If you have any questions, please contact our support team.
+
+Best regards,
+Pet Store Team'''
+                
+                send_mail(
+                    subject=subject,
+                    message=message,
+                    from_email=settings.DEFAULT_FROM_EMAIL if hasattr(settings, 'DEFAULT_FROM_EMAIL') else 'noreply@petstore.com',
+                    recipient_list=[refund_request.customer_email],
+                    fail_silently=True
+                )
+            except Exception as e:
+                print(f"Failed to send refund rejection email: {e}")
+        
+        else:
+            return Response(
+                {'error': 'Invalid action. Use "approve" or "reject"'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        return Response({
+            'message': f'Refund request {action}ed successfully',
+            'refund_request': {
+                'id': refund_request.id,
+                'status': refund_request.status,
+                'evaluated_by': refund_request.evaluated_by,
+                'evaluated_at': refund_request.evaluated_at.isoformat() if refund_request.evaluated_at else None
+            }
+        }, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        import traceback
+        return Response({
+            'error': str(e),
+            'trace': traceback.format_exc()
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_invoices(request):
+    """Get invoices within a date range"""
+    try:
+        start_date_str = request.query_params.get('start_date')
+        end_date_str = request.query_params.get('end_date')
+        
+        if not start_date_str or not end_date_str:
+            return Response(
+                {'error': 'start_date and end_date query parameters are required (YYYY-MM-DD)'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return Response(
+                {'error': 'Invalid date format. Use YYYY-MM-DD'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        invoices = []
+        
+        if USE_DATABASE and Order:
+            orders = Order.objects.filter(
+                order_date__gte=start_date,
+                order_date__lte=end_date
+            ).prefetch_related('items').order_by('-order_date')
+            
+            for order in orders:
+                invoices.append({
+                    'delivery_id': order.delivery_id,
+                    'customer_name': order.customer_name,
+                    'customer_email': order.customer_email,
+                    'order_date': order.order_date.strftime('%Y-%m-%d'),
+                    'items': [{
+                        'product_name': item.product_name,
+                        'quantity': item.quantity,
+                        'price': float(item.price)
+                    } for item in order.items.all()],
+                    'total_price': float(order.total_price),
+                    'status': order.status
+                })
+        
+        return Response({
+            'invoices': invoices,
+            'count': len(invoices),
+            'start_date': start_date_str,
+            'end_date': end_date_str
+        }, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        import traceback
+        return Response({
+            'error': str(e),
+            'trace': traceback.format_exc()
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_revenue_profit(request):
+    """Calculate revenue and profit/loss between given dates"""
+    try:
+        start_date_str = request.query_params.get('start_date')
+        end_date_str = request.query_params.get('end_date')
+        
+        if not start_date_str or not end_date_str:
+            return Response(
+                {'error': 'start_date and end_date query parameters are required (YYYY-MM-DD)'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return Response(
+                {'error': 'Invalid date format. Use YYYY-MM-DD'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        total_revenue = 0
+        total_cost = 0
+        daily_data = []
+        
+        if USE_DATABASE and Order and OrderItem:
+            from django.db.models import Sum, F
+            from collections import defaultdict
+            
+            # Count all orders, not just delivered (for revenue calculation)
+            orders = Order.objects.filter(
+                order_date__gte=start_date,
+                order_date__lte=end_date
+            ).prefetch_related('items')
+            
+            # Group by date
+            daily_revenue = defaultdict(float)
+            daily_cost = defaultdict(float)
+            
+            for order in orders:
+                order_date_str = order.order_date.strftime('%Y-%m-%d')
+                
+                for item in order.items.all():
+                    revenue = float(item.price) * item.quantity
+                    total_revenue += revenue
+                    daily_revenue[order_date_str] += revenue
+                    
+                    # Get product cost (default to 50% of price if not set)
+                    try:
+                        product = Product.objects.get(id=item.product_id)
+                        cost_per_unit = float(product.cost) if product.cost else float(item.price) * 0.5
+                    except Product.DoesNotExist:
+                        cost_per_unit = float(item.price) * 0.5
+                    
+                    cost = cost_per_unit * item.quantity
+                    total_cost += cost
+                    daily_cost[order_date_str] += cost
+            
+            # Create daily data for chart
+            current_date = start_date
+            while current_date <= end_date:
+                date_str = current_date.strftime('%Y-%m-%d')
+                revenue = daily_revenue.get(date_str, 0)
+                cost = daily_cost.get(date_str, 0)
+                profit = revenue - cost
+                
+                daily_data.append({
+                    'date': date_str,
+                    'revenue': round(revenue, 2),
+                    'cost': round(cost, 2),
+                    'profit': round(profit, 2)
+                })
+                
+                current_date += timedelta(days=1)
+        
+        total_profit = total_revenue - total_cost
+        
+        return Response({
+            'start_date': start_date_str,
+            'end_date': end_date_str,
+            'total_revenue': round(total_revenue, 2),
+            'total_cost': round(total_cost, 2),
+            'total_profit': round(total_profit, 2),
+            'daily_data': daily_data
+        }, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        import traceback
+        return Response({
+            'error': str(e),
+            'trace': traceback.format_exc()
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+
+def generate_invoice_pdf(order):
+    """Generate a PDF invoice with PatiHouse format - supports OrderItem model"""
+    buffer = io.BytesIO()
+    p = canvas.Canvas(buffer, pagesize=letter)
+
+    # Header
+    p.setFont("Helvetica-Bold", 20)
+    p.drawString(50, 750, "PatiHouse")
+    
+    p.setFont("Helvetica-Bold", 14)
+    p.drawString(450, 750, "INVOICE")
+
+    # Order Info
+    p.setFont("Helvetica", 10)
+    p.drawString(50, 720, f"Invoice No: {order.delivery_id}")
+    order_date = order.order_date.strftime('%Y-%m-%d') if hasattr(order.order_date, 'strftime') else str(order.order_date)
+    p.drawString(50, 705, f"Date: {order_date}")
+
+    # Customer Info
+    p.setFont("Helvetica-Bold", 11)
+    p.drawString(50, 660, "BILLED TO:")
+    p.setFont("Helvetica", 10)
+    p.drawString(50, 645, order.customer_name or 'Guest')
+    p.drawString(50, 630, order.customer_email or '')
+    if hasattr(order, 'delivery_address') and order.delivery_address:
+        # Split address if it's too long
+        addr_lines = order.delivery_address.split(',')[:2]
+        for i, line in enumerate(addr_lines):
+            p.drawString(50, 615 - (i * 15), line.strip())
+
+    # Products Table Header
+    y = 570 if hasattr(order, 'delivery_address') and order.delivery_address else 600
+    p.setFont("Helvetica-Bold", 10)
+    p.drawString(50, y, "Item")
+    p.drawString(350, y, "Quantity")
+    p.drawString(420, y, "Unit Price")
+    p.drawString(500, y, "Total")
+    
+    # Draw line
+    p.line(50, y - 5, 550, y - 5)
+    
+    # Products - Support both OrderItem model and legacy single product
+    y -= 25
+    p.setFont("Helvetica", 10)
+    total = 0
+    
+    # Check if order has items (OrderItem model)
+    if hasattr(order, 'items') and hasattr(order.items, 'all'):
+        for item in order.items.all():
+            item_total = float(item.price) * item.quantity
+            total += item_total
+            p.drawString(50, y, item.product_name)
+            p.drawString(350, y, str(item.quantity))
+            p.drawString(420, y, f"{float(item.price):.2f} TRY")
+            p.drawString(500, y, f"{item_total:.2f} TRY")
+            y -= 20
+    # Legacy support for single product_name field
+    elif hasattr(order, 'product_name') and hasattr(order, 'quantity'):
+        item_total = float(order.total_price)
+        total = item_total
+        p.drawString(50, y, order.product_name)
+        p.drawString(350, y, str(order.quantity))
+        unit_price = float(order.total_price) / order.quantity if order.quantity > 0 else 0
+        p.drawString(420, y, f"{unit_price:.2f} TRY")
+        p.drawString(500, y, f"{item_total:.2f} TRY")
+        y -= 20
+    else:
+        # Fallback: just show total
+        total = float(order.total_price) if hasattr(order, 'total_price') else 0
+        p.drawString(50, y, "Order Items")
+        p.drawString(500, y, f"{total:.2f} TRY")
+        y -= 20
+
+    # Totals
+    y -= 10
+    p.line(50, y, 550, y)
+    y -= 20
+    
+    subtotal = total / 1.18
+    tax = total - subtotal
+    
+    p.setFont("Helvetica", 10)
+    p.drawString(400, y, "Subtotal (excl. VAT):")
+    p.drawString(500, y, f"{subtotal:.2f} TRY")
+    y -= 15
+    
+    p.drawString(400, y, "Tax (18%):")
+    p.drawString(500, y, f"{tax:.2f} TRY")
+    y -= 20
+    
+    p.setFont("Helvetica-Bold", 12)
+    p.drawString(400, y, "Total (incl. VAT):")
+    p.drawString(500, y, f"{total:.2f} TRY")
+    
+    # Footer
+    y = 100
+    p.setFont("Helvetica", 10)
+    p.drawString(50, y, "Thank you for shopping with PatiHouse!")
+
+    p.showPage()
+    p.save()
+
+    buffer.seek(0)
+    return buffer
+
+
+def send_invoice_email(order):
+    """Send invoice PDF to the customer via email"""
+    pdf_buffer = generate_invoice_pdf(order)
+
+    email = EmailMessage(
+        subject=f"Your PatiHouse Invoice - Order {order.delivery_id}",
+        body="Thank you for your order! Your invoice is attached.",
+        from_email="petstore.orders@example.com",  # proje için dummy hesap
+        to=[order.customer_email],
+    )
+
+    email.attach(
+        f"invoice_{order.delivery_id}.pdf",
+        pdf_buffer.getvalue(),
+        "application/pdf",
+    )
+
+    email.send()
